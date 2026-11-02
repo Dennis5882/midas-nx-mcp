@@ -44,7 +44,16 @@ Done when:
 - [x] `pip install -e ".[dev]"` works; `pytest` and `ruff` pass
 - [x] the server starts over stdio and lists its tools to a real MCP client
 - [x] every phase 1 tool tried against an open Gen model (direct + stdio)
-- [ ] the same against an open Civil model
+- [x] the same against an open Civil model. 2026-11-03, on an empty, never-saved
+      Civil document: connection, every read tool, capture (PNG), "no analysis
+      result" relayed, `run_analysis` refused for the unsaved document, and a
+      NODE create -> update -> token replay refused -> delete round trip, back
+      to 0 nodes. Then a dummy model built entirely with `write_records`
+      (MATL, SECT, NODE, ELEM, CONS, STLD, BODF; the SDK's live_smoke column:
+      0.6 x 0.6 m C24, 3.2 m, fixed base), saved to
+      `C:/temp/mcp-dummy-civil-20261103-002739.mcbz` with the SDK's `save_as`,
+      `run_analysis` done in 12.6 s, DL reaction FZ 27.113 kN = 0.36 m2 x 3.2 m
+      x 23.54 kN/m3, the same C24 unit weight as the Gen model
 - [ ] registered in Claude Desktop and answered a question on each product
       (Gen: "summarise the model" answered from several tools; "DL reactions"
       before analysis relayed NX's "no analysis result" as a failure; after the
@@ -96,7 +105,7 @@ it appear at 00:02:23 and close at 00:03:08), and Claude Desktop relayed it
 before the user answered.
 
 - [x] apply live on the author's test model, with the author's go-ahead
-      (write, delete, analysis; update not yet)
+      (write, delete, analysis on Gen; update on Civil)
 - [ ] write `/DESIGN` tables? (RC `DCO` has been refused, and Civil
       `CD-ANAL` without an RC code crashed NX twice: see SDK notes)
 - [ ] `save_copy` via `/doc/SAVEAS`: Save As in the UI re-points the open

@@ -7,8 +7,8 @@ change it only through steps you see and confirm first. Built on the
 
 Personal, employee-led project; **not an official MIDAS IT product**.
 
-> Status: alpha. Verified live on Gen NX 2026. Civil NX is supported by the
-> code but not yet verified live.
+> Status: alpha. Verified live on Gen NX 2026 and Civil NX 2026 on small test
+> models (see `PLAN.md`); not yet used on large production models.
 
 ## What you can ask
 
