@@ -10,11 +10,13 @@ import functools
 import hashlib
 import json
 import logging
+import os
 import sys
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
+from pathlib import Path
 from typing import Any, Literal
 
 import requests
@@ -37,7 +39,7 @@ mcp = MCPServer(
         "(product='civil'). Start with check_connection. Use list_tables and "
         "describe_table before read_table; list_result_tables before result_table. "
         "capture_view shows the NX model window as an image. "
-        "run_analysis, write_records and delete_records change the model or its "
+        "run_analysis, save_copy, write_records and delete_records change the model or its "
         "file: call them first without confirm_token, show the preview to the user, "
         "and apply with the returned confirm_token only after the user agrees. "
         "If a call times out, ask the user to look at the NX window for an open "
@@ -55,6 +57,12 @@ WRITES_FILE = ToolAnnotations(
 CHANGES_MODEL = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
 )
+# Changes which file NX works on, destroys nothing.
+SWITCHES_FILE = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+)
+SAVE_PREFIX = "mcp-save-"
+SAVE_EXTENSIONS = {"gen": ".mgbx", "civil": ".mcbz"}  # CLAUDE.md rule 5
 MAX_WRITE_RECORDS = 50
 DIALOG_POLL_SECONDS = 1.0
 CAPTURE_PREFIX = "mcp-capture-"
@@ -381,18 +389,9 @@ def capture_view(product: Product, width: int | None = None, height: int | None 
             if not 1 <= value <= MAX_CAPTURE_PIXELS:
                 raise ToolError(f"{name.lower()} must be 1..{MAX_CAPTURE_PIXELS}, got {value}")
             argument[name] = value
-    folder = config.output_dir()
-    if not folder.is_dir():
-        # A missing folder raises a modal dialog in NX and blocks the session.
-        raise ToolError(f"Output folder {folder} does not exist on this PC; not asking NX.")
-    path = folder / f"{CAPTURE_PREFIX}{product}-{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}.png"
+    path = _generated_path(CAPTURE_PREFIX, product, ".png")
     capture({"EXPORT_PATH": path.as_posix(), **argument}, client=_client(product))
-    # NX answers once it has accepted the call; give the file a moment to land.
-    for _ in range(20):
-        if path.is_file() and path.stat().st_size > 0:
-            break
-        time.sleep(0.25)
-    else:
+    if not _file_landed(path):
         raise ToolError(
             f"NX answered the capture but {path} did not appear on this PC. NX may be "
             "running on another computer, where the file was written instead."
@@ -400,6 +399,25 @@ def capture_view(product: Product, width: int | None = None, height: int | None 
     data = path.read_bytes()
     path.unlink()  # our own generated file only (rule 8)
     return Image(data=data, format="png")
+
+
+def _generated_path(prefix: str, product: str, suffix: str) -> Path:
+    """A new file name in the output folder (CLAUDE.md rule 5); never one we were given."""
+    folder = config.output_dir()
+    if not folder.is_dir():
+        # A missing folder raises a modal dialog in NX and blocks the session.
+        raise ToolError(f"Output folder {folder} does not exist on this PC; not asking NX.")
+    stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    return folder / f"{prefix}{product}-{stamp}{suffix}"
+
+
+def _file_landed(path: Path) -> bool:
+    """NX answers once it has accepted the call; give the file a moment to land."""
+    for _ in range(20):
+        if path.is_file() and path.stat().st_size > 0:
+            return True
+        time.sleep(0.25)
+    return False
 
 
 # --- Phase 2: changes to the model or its file --------------------------------
@@ -445,14 +463,34 @@ def _diff(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
 
 def _writable(table: str, method: str):
     cls = _table_class(table)
-    if not cls.ENDPOINT.startswith("/db/"):
-        raise ToolError("Only /db tables can be written here; /DESIGN tables are read-only.")
     if method not in cls.METHODS:
         raise ToolError(
             f"{catalog.table_name(cls.ENDPOINT)} does not accept {method}; "
             f"it supports {sorted(cls.METHODS)}."
         )
     return cls
+
+
+# Measured (SDK live notes): any write discards the analysis results, even one
+# that stores the value already there.
+RESULTS_WARNING = (
+    "Applying this discards the analysis results in NX; run_analysis again before "
+    "reading result tables."
+)
+# Measured on the /DESIGN tables (SDK live notes, 2026-09-28/29).
+DESIGN_NOTE = (
+    "/DESIGN tables: DCTL and LENG are one record shared by the RC, steel and SRC "
+    "codes; RC/steel SRDF and LMRR are refused until that code's DCO is written; "
+    "Civil refuses the RC and steel design code selection; a DELETE may reset a "
+    "record to defaults instead of removing it."
+)
+
+
+def _preview(cls, **fields: Any) -> dict[str, Any]:
+    preview: dict[str, Any] = {"preview": True, **fields, "warning": RESULTS_WARNING}
+    if cls.ENDPOINT.startswith("/DESIGN/"):
+        preview["design_note"] = DESIGN_NOTE
+    return preview
 
 
 def _record_ids(ids: Any) -> list[str]:
@@ -546,6 +584,58 @@ def _log_late_analysis(future) -> None:
     log.info("analysis finished after a dialog: %s", error or future.result())
 
 
+@mcp.tool(annotations=SWITCHES_FILE)
+@_guarded
+def save_copy(product: Product, confirm_token: str | None = None) -> dict:
+    """Save the model as a new file in the output folder (POST /doc/SAVEAS).
+    Two steps: preview, then apply.
+
+    Like Save As in NX: from then on NX works on the copy, so the window, later
+    saves and run_analysis use it, and the original file stays as it was last
+    saved. The name is generated (mcp-save-<product>-<time>, .mgbx for Gen,
+    .mcbz for Civil). Also the way to give a never-saved document a file, which
+    run_analysis needs.
+    """
+    document = nx_window.open_document(product)
+    if document is None:
+        raise ToolError(
+            "Cannot see the NX window on this PC, so cannot check that the copy is "
+            "written. Use Save As in NX itself."
+        )
+    token = _token("save_copy", product, document.path, document.unsaved_changes)
+    if confirm_token is None:
+        warning = (
+            f"NX will save the model as a new file in {config.output_dir()} and go on "
+            "working on that copy. "
+        )
+        if document.path is None:
+            warning += "The open document has never been saved; the copy becomes its file."
+        else:
+            warning += f"{document.path} stays as it was last saved" + (
+                ", without the changes not yet saved." if document.unsaved_changes else "."
+            )
+        return {"preview": True, "folder": str(config.output_dir()),
+                "original": document.path, "warning": warning, "confirm_token": token}
+    _check_token(confirm_token, token)
+    path = _generated_path(SAVE_PREFIX, product, SAVE_EXTENSIONS[product])
+    response = doc.save_as(path.as_posix(), client=_client(product))
+    message = response.get("message") if isinstance(response, dict) else response
+    # Civil answers "command complete" for a save it did not write (SDK live
+    # notes); the disk and the window title are what count.
+    if not _file_landed(path):
+        raise ToolError(f"NX answered {message!r}, but {path} is not on disk: nothing was saved.")
+    now = nx_window.open_document(product)
+    result: dict[str, Any] = {"applied": True, "file": str(path), "server_message": message,
+                              "now_open": now.path if now else None}
+    if now is None or now.path is None or (
+        os.path.normcase(now.path) != os.path.normcase(str(path.with_suffix("")))
+    ):
+        result["warning"] = (
+            "The copy is on disk, but the NX window does not show it as the open document."
+        )
+    return result
+
+
 @mcp.tool(annotations=CHANGES_MODEL)
 @_guarded
 def write_records(
@@ -555,13 +645,16 @@ def write_records(
     mode: Literal["create", "update"],
     confirm_token: str | None = None,
 ) -> dict:
-    """Create or update records in one /db table. Two steps: preview, then apply.
+    """Create or update records in one /db or /DESIGN table. Two steps: preview, then apply.
 
     records: {id: fields}, e.g. {"13": {"X": 0, "Y": 0, "Z": 6.4}} for NODE; see
-    describe_table for the fields. "create" refuses ids that exist, "update"
-    ids that do not. At most 50 records. After applying, the table is read back
-    and what actually changed is returned; some tables store a new record under
-    an id of their own choosing, so trust "added", not the ids you sent.
+    describe_table for the fields (or read_table, for /DESIGN). "create"
+    refuses ids that exist, "update" ids that do not, except on a table with
+    no POST (most /DESIGN tables: one record, "update" only), where "update"
+    also creates it. At most 50 records. After applying, the
+    table is read back and what actually changed is returned; some tables store
+    a new record under an id of their own choosing, so trust "added", not the
+    ids you sent. Any write discards the analysis results.
     """
     method = "POST" if mode == "create" else "PUT"
     cls = _writable(table, method)
@@ -574,15 +667,17 @@ def write_records(
         clash = [i for i in ids if i in before]
         if clash:
             raise ToolError(f"{name} already has ids {clash}; use mode='update' for those.")
-    else:
+    elif "POST" in cls.METHODS:
         missing = [i for i in ids if i not in before]
         if missing:
             raise ToolError(f"{name} has no ids {missing}; use mode='create' for those.")
+    # Otherwise a PUT-only table (most /DESIGN singletons): its PUT is also how
+    # the record comes to exist on a fresh document (SDK live notes).
     current = {i: before[i] for i in ids if i in before}
     token = _token("write", product, name, mode, payload, current, len(before))
     if confirm_token is None:
-        return {"preview": True, "table": name, "mode": mode, "current": current,
-                "will_send": payload, "confirm_token": token}
+        return _preview(cls, table=name, mode=mode, current=current, will_send=payload,
+                        confirm_token=token)
     _check_token(confirm_token, token)
     items = {int(k): v for k, v in payload.items()}
     response = (cls.create if mode == "create" else cls.update)(items, client=client)
@@ -601,11 +696,13 @@ def write_records(
 def delete_records(
     product: Product, table: str, ids: list[int], confirm_token: str | None = None
 ) -> dict:
-    """Delete records by id from one /db table. Two steps: preview, then apply.
+    """Delete records by id from one /db or /DESIGN table. Two steps: preview, then apply.
 
     Only the listed ids, one DELETE per id; there is no way to empty a table
     here. Nodes still used by an element are refused (NX would delete the
-    elements with them). At most 50 ids.
+    elements with them). At most 50 ids. The table is read back afterwards: on
+    some /DESIGN tables NX resets the record to defaults rather than removing
+    it, or keeps it unchanged, and the result says which.
     """
     cls = _writable(table, "DELETE")
     name = catalog.table_name(cls.ENDPOINT)
@@ -631,8 +728,8 @@ def delete_records(
     counts = {t: len(_records(tables[t].get(client=client))[0]) for t in watched}
     token = _token("delete", product, name, present, {k: before[k] for k in present}, counts)
     if confirm_token is None:
-        return {"preview": True, "table": name, "will_delete": {k: before[k] for k in present},
-                "not_found": [k for k in keys if k not in before], "confirm_token": token}
+        return _preview(cls, table=name, will_delete={k: before[k] for k in present},
+                        not_found=[k for k in keys if k not in before], confirm_token=token)
     _check_token(confirm_token, token)
     responses = cls.delete([int(k) for k in present], client=client)
     after, _ = _records(cls.get(client=client))
@@ -640,7 +737,13 @@ def delete_records(
                               "server_response": _small(responses)}
     gone = set(result["removed"])
     if gone != set(present):
-        result["warning"] = f"Asked to delete {present}; reading back shows {sorted(gone)} gone."
+        kept = sorted(set(present) - gone, key=lambda k: (len(k), k))
+        reset = [k for k in kept if k in result["changed"]]
+        unchanged = [k for k in kept if k not in result["changed"]]
+        notes = [f"ids {reset} are still there, reset by NX (see changed)"] if reset else []
+        if unchanged:
+            notes.append(f"ids {unchanged} are still there, unchanged: NX did not delete them")
+        result["warning"] = "; ".join(notes) + "."
     side = {t: (n, len(_records(tables[t].get(client=client))[0])) for t, n in counts.items()}
     side = {t: {"before": b, "after": a} for t, (b, a) in side.items() if b != a}
     if side:

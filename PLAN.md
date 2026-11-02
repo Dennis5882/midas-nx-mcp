@@ -91,8 +91,9 @@ token it re-checks and applies only on a match, then reads back.
 | tool | guard |
 | --- | --- |
 | `run_analysis` | document path from the NX window title; refused if never saved or not visible here (an unsaved document raises a blocking Save As). Preview warns that NX saves over the file first (`.bak`). Timeout `MIDAS_ANALYSIS_TIMEOUT` (300 s) reported as "may still be running, do not rerun" |
-| `write_records` | `/db` only (not `/DESIGN`); create refuses existing ids, update missing ones; 50 records max; reports added/changed/removed from a full read-back, and flags renumbered ids and "answered but nothing changed" |
-| `delete_records` | per-id DELETE only; nodes used by elements refused; NODE/ELEM counts compared before and after to catch cascades |
+| `save_copy` | `/doc/SAVEAS` to `MIDAS_OUTPUT_DIR/mcp-save-{product}-{time}` (`.mgbx` Gen, `.mcbz` Civil) only; NX window must be visible; success is the file on disk (Civil answers "command complete" for a save it did not write), and the window title is checked to name the copy |
+| `write_records` | `/db` and `/DESIGN`; create refuses existing ids, update missing ones (except on PUT-only tables, where PUT creates the record); 50 records max; reports added/changed/removed from a full read-back, and flags renumbered ids and "answered but nothing changed". Every preview warns that applying discards the analysis results; `/DESIGN` previews add the shared-record / DCO-first / Civil-refusal notes |
+| `delete_records` | per-id DELETE only; nodes used by elements refused; NODE/ELEM counts compared before and after to catch cascades; a record still there afterwards is reported as reset by NX or not deleted |
 
 Live (2026-11-03, Gen, from Claude Desktop): previews; a node created and
 deleted again (NODE back to 12); `run_analysis` applied twice. Gen stopped
@@ -106,11 +107,17 @@ before the user answered.
 
 - [x] apply live on the author's test model, with the author's go-ahead
       (write, delete, analysis on Gen; update on Civil)
-- [ ] write `/DESIGN` tables? (RC `DCO` has been refused, and Civil
-      `CD-ANAL` without an RC code crashed NX twice: see SDK notes)
-- [ ] `save_copy` via `/doc/SAVEAS`: Save As in the UI re-points the open
-      document at the copy, so later saves would go there. Not measured
-      through the API; check the SDK notes before building it.
+- [x] write `/DESIGN` tables. Live on the Civil dummy (2026-11-03): RC `DCTL`
+      created by PUT on a fresh document, read back identical through steel's
+      `DCTL` (one shared record), the DL reaction then answered "no analysis
+      result", and the DELETE left the record reset to `bAUTOKF false`,
+      `DT 3D`, reported as "reset by NX". Same on Gen (an empty, never-saved
+      document first given a file by `save_copy`; shared record seen through
+      SRC's `DCTL`). The design runs (`*-ANAL`, crash history) stay out.
+- [x] `save_copy` via `/doc/SAVEAS`. Live on the Civil dummy: a 159 KB
+      `mcp-save-civil-...mcbz` written, the window title moved to the copy
+      (so Save As does re-point the open document through the API too), and
+      the analysis results survived the save.
 
 Never: see CLAUDE.md rule 4.
 
@@ -119,7 +126,9 @@ Never: see CLAUDE.md rule 4.
 - Does Claude Desktop on the author's plan allow local MCP servers?
   (Settings > Developer. Check before building much.)
 - Distribution: public on GitHub (`Dennis5882/midas-nx-mcp`) and PyPI
-  (`midas-nx-mcp`, run with `uvx`), released from GitHub Releases. Next: a
+  (`midas-nx-mcp`, run with `uvx`), released from GitHub Releases. v0.1.0 on
+  PyPI 2026-11-03; the author connected Codex to it with `uvx midas-nx-mcp`
+  and the keys as env, and it worked (second client after Claude Desktop). Next: a
   `.mcpb` for Claude Desktop users who should not edit JSON, as a thin
   wrapper around the PyPI package (check the current MCPB spec for Python).
 - One server per product, or one server with a `product` argument? Starting

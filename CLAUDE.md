@@ -71,7 +71,7 @@ a blocked session there.
 3. **Reads stay reads; every change is previewed.** Read tools send GET only,
    plus `/post/TABLE` without `EXPORT_PATH` and `/view/CAPTURE` into the
    output folder. The only tools that change the model or its file are
-   PLAN.md's phase 2 tools (`run_analysis`, `write_records`,
+   PLAN.md's phase 2 tools (`run_analysis`, `save_copy`, `write_records`,
    `delete_records`), and each needs the `confirm_token` its own preview
    returned. A new write tool follows the same pattern: preview, token from
    the request and current state, apply, read back.

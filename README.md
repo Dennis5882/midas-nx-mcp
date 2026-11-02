@@ -97,8 +97,12 @@ and reads the table back afterwards:
 | tool | what it does |
 | --- | --- |
 | `run_analysis(product)` | runs the analysis. NX saves the open file first; a never-saved document is refused. A dialog NX opens meanwhile is reported at once |
-| `write_records(product, table, records, mode)` | creates or updates up to 50 `/db` records |
-| `delete_records(product, table, ids)` | deletes up to 50 records by id; nodes still used by elements are refused |
+| `save_copy(product)` | Save As to a generated name in `MIDAS_OUTPUT_DIR`; NX then works on the copy and the original stays as last saved. Gives a new document a file |
+| `write_records(product, table, records, mode)` | creates or updates up to 50 `/db` or `/DESIGN` records |
+| `delete_records(product, table, ids)` | deletes up to 50 records by id; nodes still used by elements are refused; a `/DESIGN` record NX resets instead of removing is reported as such |
+
+Any write discards the analysis results in NX (even one that stores the same
+value); run the analysis again before reading results.
 
 Never exposed: new/open/import document, emptying a table.
 

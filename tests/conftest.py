@@ -86,6 +86,11 @@ def nx(monkeypatch, tmp_path):
         if method == "DELETE":
             assert url.rsplit("/", 1)[1].isdigit(), url
         assert not any(f"/doc/{c}" in url for c in ("NEW", "OPEN", "IMPORT")), url
+        # A save only ever goes to a generated name in the output folder.
+        if url.endswith("/doc/SAVEAS"):
+            target = body["Argument"]
+            target = target.get("PATH", target) if isinstance(target, dict) else target
+            assert str(target).startswith(tmp_path.as_posix() + "/mcp-save-"), target
         if method == "GET" or session.writes_allowed:
             continue
         # Otherwise nothing changes the model: /post/TABLE without EXPORT_PATH,

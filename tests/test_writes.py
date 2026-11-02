@@ -1,6 +1,7 @@
 """Phase 2 tools against a fake NX (see conftest.py): preview, token, apply, read back."""
 
 import threading
+from pathlib import Path
 
 import pytest
 import requests
@@ -95,9 +96,63 @@ def test_an_answer_without_a_change_is_not_reported_as_done(model):
     assert "no change" in result["warning"]
 
 
-def test_design_tables_and_big_batches_are_refused(model):
-    with pytest.raises(ToolError, match="read-only"):
-        server.write_records("gen", "DESIGN/STEEL/DSTL", {"1": {}}, "update")
+def test_every_write_preview_warns_about_analysis_results(model):
+    preview = server.write_records("gen", "NODE", {"4": {"X": 0}}, "create")
+    assert "discards the analysis results" in preview["warning"]
+    assert "design_note" not in preview
+    assert "discards the analysis results" in server.delete_records("gen", "NODE", [3])["warning"]
+
+
+def test_design_tables_are_written_and_read_back(model):
+    session, _, _ = model
+    session.routes["/DESIGN/STEEL/DSTL"] = FakeTable("DSTL", {1: {"CODE": "AISC360-16"}})
+    records = {"1": {"CODE": "KDS 41 30 : 2022"}}
+    preview = server.write_records("gen", "DESIGN/STEEL/DSTL", records, "update")
+    assert "DCTL and LENG are one record" in preview["design_note"]
+    result = server.write_records(
+        "gen", "DESIGN/STEEL/DSTL", records, "update", confirm_token=preview["confirm_token"]
+    )
+    assert result["changed"]["1"]["after"] == {"CODE": "KDS 41 30 : 2022"}
+
+
+def test_update_creates_the_record_on_a_put_only_table(model, monkeypatch):
+    session, _, _ = model
+    name = "DESIGN/RC/KDS-41-20-2022/DCTL"
+    assert "POST" not in server.catalog.db_tables()[name].METHODS
+    session.routes[f"/{name}"] = FakeTable("DCTL", {})  # a fresh document has none
+    records = {"1": {"DT": "XZ"}}
+    token = server.write_records("gen", name, records, "update")["confirm_token"]
+    result = server.write_records("gen", name, records, "update", confirm_token=token)
+    assert result["added"] == {"1": {"DT": "XZ"}}
+
+
+@pytest.mark.parametrize(
+    ("after_delete", "expected"),
+    [
+        ({"1": {"DT": "3D"}}, "reset by NX"),  # DCTL: back to defaults
+        ({"1": {"DT": "2D"}}, "did not delete"),  # RC SRDF: "error status", kept
+    ],
+)
+def test_a_design_delete_that_keeps_the_record_says_so(model, after_delete, expected):
+    session, _, _ = model
+    table = {"1": {"DT": "2D"}}
+
+    def design_table(method, url, body):
+        if method == "DELETE":
+            table.clear()
+            table.update(after_delete)
+            return {"message": "error status"}
+        return {"DCTL": dict(table)}
+
+    session.routes["/DESIGN/RC/KDS-41-20-2022/DCTL"] = design_table
+    name = "DESIGN/RC/KDS-41-20-2022/DCTL"
+    token = server.delete_records("gen", name, [1])["confirm_token"]
+    result = server.delete_records("gen", name, [1], confirm_token=token)
+    assert expected in result["warning"]
+    assert result["removed"] == []
+
+
+def test_big_batches_and_bad_ids_are_refused(model):
     with pytest.raises(ToolError, match="At most 50"):
         server.write_records("gen", "NODE", {str(i): {} for i in range(10, 61)}, "create")
     with pytest.raises(ToolError, match="positive integers"):
@@ -213,6 +268,75 @@ def test_analysis_timeout_says_not_to_run_it_again(model, monkeypatch):
     with pytest.raises(ToolError, match="do not start the analysis again") as info:
         server.run_analysis("gen", confirm_token=token)
     assert "Check Changed Story Information" in str(info.value)
+
+
+# --- save_copy ----------------------------------------------------------------
+
+
+class Window:
+    """The document NX shows; save_as moves it to the copy, as Save As does."""
+
+    def __init__(self, document):
+        self.document = document
+
+    def __call__(self, product):
+        return self.document
+
+
+def _nx_saves(window, write_file=True):
+    def save_as(method, url, body):
+        target = Path(body["Argument"])
+        if write_file:
+            target.write_bytes(b"model")
+            window.document = nx_window.Document(str(target.with_suffix("")), False)
+        return {"message": "MIDAS GEN NX command complete"}
+
+    return save_as
+
+
+def test_save_copy_previews_then_saves_under_a_generated_name(model, monkeypatch, tmp_path):
+    session, _, _ = model
+    window = Window(nx_window.Document("C:\\work\\bridge", True))
+    monkeypatch.setattr(nx_window, "open_document", window)
+    session.routes["/doc/SAVEAS"] = _nx_saves(window)
+    preview = server.save_copy("gen")
+    assert "C:\\work\\bridge stays as it was last saved" in preview["warning"]
+    assert "without the changes not yet saved" in preview["warning"]
+    assert _writes(session) == []
+    result = server.save_copy("gen", confirm_token=preview["confirm_token"])
+    saved = Path(result["file"])
+    assert saved.parent == tmp_path and saved.name.startswith("mcp-save-gen-")
+    assert saved.suffix == ".mgbx" and saved.is_file()
+    assert "warning" not in result
+
+
+def test_save_copy_gives_a_new_document_a_file(model, monkeypatch):
+    session, _, _ = model
+    window = Window(nx_window.Document(None, True))
+    monkeypatch.setattr(nx_window, "open_document", window)
+    session.routes["/doc/SAVEAS"] = _nx_saves(window)
+    preview = server.save_copy("civil")
+    assert "never been saved; the copy becomes its file" in preview["warning"]
+    result = server.save_copy("civil", confirm_token=preview["confirm_token"])
+    assert result["file"].endswith(".mcbz")
+    assert window.document.path is not None
+
+
+def test_a_save_that_wrote_nothing_is_an_error(model, monkeypatch):
+    session, _, _ = model
+    window = Window(nx_window.Document("C:\\work\\bridge", False))
+    monkeypatch.setattr(nx_window, "open_document", window)
+    monkeypatch.setattr(server.time, "sleep", lambda s: None)
+    session.routes["/doc/SAVEAS"] = _nx_saves(window, write_file=False)  # Civil's silent failure
+    token = server.save_copy("gen")["confirm_token"]
+    with pytest.raises(ToolError, match="nothing was saved"):
+        server.save_copy("gen", confirm_token=token)
+
+
+def test_save_copy_needs_the_nx_window(model, monkeypatch):
+    monkeypatch.setattr(nx_window, "open_document", lambda product: None)
+    with pytest.raises(ToolError, match="Cannot see the NX window"):
+        server.save_copy("gen")
 
 
 # --- nx_window ----------------------------------------------------------------
