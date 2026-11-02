@@ -71,6 +71,7 @@ environment variables below.
 | `MIDAS_MAPI_KEY_CIVIL` | - | Civil NX key. Needed for `product="civil"` |
 | `MIDAS_TIMEOUT` | `20` | seconds per call. Short on purpose: a dialog in NX blocks the API |
 | `MIDAS_ANALYSIS_TIMEOUT` | `300` | seconds for `run_analysis` only |
+| `MIDAS_SAVE_TIMEOUT` | `120` | seconds for `save_copy` only |
 | `MIDAS_MAX_ROWS` | `200` | most rows one call returns; the rest are counted, not sent |
 | `MIDAS_OUTPUT_DIR` | `C:/temp` | where NX writes captures. Must exist |
 

@@ -62,6 +62,11 @@ def analysis_timeout() -> float:
     return float(setting("MIDAS_ANALYSIS_TIMEOUT", "300"))
 
 
+def save_timeout() -> float:
+    """save_copy only: writing a big model takes longer than a plain read."""
+    return float(setting("MIDAS_SAVE_TIMEOUT", "120"))
+
+
 def output_dir() -> Path:
     """Where NX writes files this server asks for (CLAUDE.md rule 5).
 

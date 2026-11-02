@@ -126,6 +126,43 @@ def test_update_creates_the_record_on_a_put_only_table(model, monkeypatch):
     assert result["added"] == {"1": {"DT": "XZ"}}
 
 
+def test_update_does_not_create_anywhere_else(model):
+    session, _, _ = model
+    # A PUT-only /DESIGN table with many records, and a PUT-only /db table.
+    put_only_db = next(
+        n for n, c in server.catalog.db_tables().items()
+        if "/db/" in c.ENDPOINT and "POST" not in c.METHODS and "PUT" in c.METHODS
+        and "gen" in c.PRODUCTS
+    )
+    for name in ("DESIGN/RC/KDS-41-20-2022/MEMB", put_only_db):
+        cls = server.catalog.db_tables()[name]
+        session.routes[cls.ENDPOINT] = FakeTable(name, {})
+        with pytest.raises(ToolError, match="has no ids"):
+            server.write_records("gen", name, {"9999": {"X": 1}}, "update")
+    # A singleton, but not its record 1.
+    session.routes["/DESIGN/RC/KDS-41-20-2022/DCTL"] = FakeTable("DCTL", {})
+    with pytest.raises(ToolError, match="has no ids"):
+        server.write_records("gen", "DESIGN/RC/KDS-41-20-2022/DCTL", {"2": {}}, "update")
+    assert _writes(session) == []
+
+
+def test_a_delete_that_takes_more_than_asked_names_the_extra_ids(model):
+    session, nodes, _ = model
+
+    def greedy(m, u, b):
+        if m == "DELETE":
+            nodes.records.pop("3", None)
+            nodes.records.pop("2", None)  # NX takes a neighbour along
+            return {}
+        return nodes(m, u, b)
+
+    session.routes["/db/NODE"] = greedy
+    session.routes["/db/ELEM"] = FakeTable("ELEM", {})
+    token = server.delete_records("gen", "NODE", [3])["confirm_token"]
+    result = server.delete_records("gen", "NODE", [3], confirm_token=token)
+    assert "ids ['2'] are gone too" in result["warning"]
+
+
 @pytest.mark.parametrize(
     ("after_delete", "expected"),
     [
@@ -213,7 +250,7 @@ def test_analysis_needs_a_visible_saved_document(model, monkeypatch):
     with pytest.raises(ToolError, match="Cannot see the NX window"):
         server.run_analysis("gen")
     _document(monkeypatch, nx_window.Document(None, True))
-    with pytest.raises(ToolError, match="never been saved"):
+    with pytest.raises(ToolError, match="never been saved.*save_copy"):
         server.run_analysis("gen")
     assert _writes(session) == []
 
@@ -328,9 +365,71 @@ def test_a_save_that_wrote_nothing_is_an_error(model, monkeypatch):
     monkeypatch.setattr(nx_window, "open_document", window)
     monkeypatch.setattr(server.time, "sleep", lambda s: None)
     session.routes["/doc/SAVEAS"] = _nx_saves(window, write_file=False)  # Civil's silent failure
+    session.windows = {"Invalid path"}
     token = server.save_copy("gen")["confirm_token"]
-    with pytest.raises(ToolError, match="nothing was saved"):
+    with pytest.raises(ToolError, match="not on disk") as info:
         server.save_copy("gen", confirm_token=token)
+    message = str(info.value)
+    assert "look at the NX window" in message and "do not save again" in message
+    assert "'Invalid path'" in message and "C:\\work\\bridge as open" in message
+
+
+def test_a_dialog_during_the_save_is_reported_at_once(model, monkeypatch):
+    session, _, _ = model
+    monkeypatch.setattr(nx_window, "open_document", Window(nx_window.Document("C:\\w\\m", False)))
+    monkeypatch.setattr(server, "DIALOG_POLL_SECONDS", 0.01)
+    answered = threading.Event()
+
+    def blocked(method, url, body):
+        session.windows.add("Save As")
+        answered.wait(5)
+        return {"message": "MIDAS GEN NX command complete"}
+
+    session.routes["/doc/SAVEAS"] = blocked
+    token = server.save_copy("gen")["confirm_token"]
+    result = server.save_copy("gen", confirm_token=token)
+    answered.set()
+    assert result["status"] == "waiting_for_nx_dialog" and result["nx_dialog"] == ["Save As"]
+
+
+def test_save_copy_token_covers_the_folder_and_preview_checks_it(model, monkeypatch, tmp_path):
+    monkeypatch.setattr(nx_window, "open_document", Window(nx_window.Document("C:\\w\\m", False)))
+    token = server.save_copy("gen")["confirm_token"]
+    other = tmp_path / "other"
+    other.mkdir()
+    monkeypatch.setenv("MIDAS_OUTPUT_DIR", str(other))
+    with pytest.raises(ToolError, match="Preview again"):
+        server.save_copy("gen", confirm_token=token)
+    monkeypatch.setenv("MIDAS_OUTPUT_DIR", str(tmp_path / "missing"))
+    with pytest.raises(ToolError, match="does not exist"):
+        server.save_copy("gen")
+
+
+@pytest.mark.parametrize("with_extension", [False, True])
+def test_a_title_that_catches_up_late_or_shows_the_extension_is_fine(
+    model, monkeypatch, with_extension
+):
+    session, _, _ = model
+    original = nx_window.Document("C:\\w\\m", False)
+    titles = []
+
+    def window(product):
+        return titles.pop(0) if titles else original
+
+    def save_as(method, url, body):
+        target = Path(body["Argument"])
+        target.write_bytes(b"model")
+        shown = str(target) if with_extension else str(target.with_suffix(""))
+        # The title still shows the original twice before it moves to the copy.
+        titles.extend([original, original, nx_window.Document(shown, False)])
+        return {"message": "MIDAS GEN NX command complete"}
+
+    monkeypatch.setattr(nx_window, "open_document", window)
+    monkeypatch.setattr(server.time, "sleep", lambda s: None)
+    session.routes["/doc/SAVEAS"] = save_as
+    token = server.save_copy("gen")["confirm_token"]
+    result = server.save_copy("gen", confirm_token=token)
+    assert "warning" not in result, result
 
 
 def test_save_copy_needs_the_nx_window(model, monkeypatch):

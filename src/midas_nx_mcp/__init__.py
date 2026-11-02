@@ -1,3 +1,3 @@
 """Local MCP server for MIDAS Gen NX / Civil NX, built on midas-nx."""
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"

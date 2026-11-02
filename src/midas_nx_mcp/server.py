@@ -63,6 +63,7 @@ SWITCHES_FILE = ToolAnnotations(
 )
 SAVE_PREFIX = "mcp-save-"
 SAVE_EXTENSIONS = {"gen": ".mgbx", "civil": ".mcbz"}  # CLAUDE.md rule 5
+SAVE_LANDING_SECONDS = 30.0  # a big model is still being written after NX answers
 MAX_WRITE_RECORDS = 50
 DIALOG_POLL_SECONDS = 1.0
 CAPTURE_PREFIX = "mcp-capture-"
@@ -228,7 +229,7 @@ def read_table(
     if ids is not None:
         wanted = {str(i) for i in ids}
         selected = {k: v for k, v in records.items() if k in wanted}
-        missing = sorted(wanted - selected.keys(), key=lambda k: (len(k), k))
+        missing = sorted(wanted - selected.keys(), key=_by_id)
     else:
         selected, missing = records, []
     n = _limit(limit)
@@ -357,8 +358,8 @@ def result_table(
     table = unwrap_table(response)
     if not table:
         # No table in the body: hand the server's own words back (rule 6).
-        message = response.get("message", "") if isinstance(response, dict) else response
-        return {"table_type": table_type, "rows": 0, "server_message": str(message) or None}
+        message = _server_message(response)
+        return {"table_type": table_type, "rows": 0, "server_message": str(message or "") or None}
     data = table.get("DATA") or []
     n = _limit(limit)
     result: dict[str, Any] = {
@@ -401,19 +402,23 @@ def capture_view(product: Product, width: int | None = None, height: int | None 
     return Image(data=data, format="png")
 
 
-def _generated_path(prefix: str, product: str, suffix: str) -> Path:
-    """A new file name in the output folder (CLAUDE.md rule 5); never one we were given."""
+def _output_folder() -> Path:
     folder = config.output_dir()
     if not folder.is_dir():
         # A missing folder raises a modal dialog in NX and blocks the session.
         raise ToolError(f"Output folder {folder} does not exist on this PC; not asking NX.")
+    return folder
+
+
+def _generated_path(prefix: str, product: str, suffix: str) -> Path:
+    """A new file name in the output folder (CLAUDE.md rule 5); never one we were given."""
     stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
-    return folder / f"{prefix}{product}-{stamp}{suffix}"
+    return _output_folder() / f"{prefix}{product}-{stamp}{suffix}"
 
 
-def _file_landed(path: Path) -> bool:
+def _file_landed(path: Path, seconds: float = 5.0) -> bool:
     """NX answers once it has accepted the call; give the file a moment to land."""
-    for _ in range(20):
+    for _ in range(max(1, int(seconds / 0.25))):
         if path.is_file() and path.stat().st_size > 0:
             return True
         time.sleep(0.25)
@@ -453,12 +458,22 @@ def _diff(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
         for k in before.keys() & after.keys()
         if before[k] != after[k]
     }
-    by_id = lambda k: (len(k), k)
     return {
-        "added": {k: after[k] for k in sorted(after.keys() - before.keys(), key=by_id)},
-        "changed": dict(sorted(changed.items(), key=lambda kv: by_id(kv[0]))),
-        "removed": sorted(before.keys() - after.keys(), key=by_id),
+        "added": {k: after[k] for k in sorted(after.keys() - before.keys(), key=_by_id)},
+        "changed": dict(sorted(changed.items(), key=lambda kv: _by_id(kv[0]))),
+        "removed": sorted(before.keys() - after.keys(), key=_by_id),
     }
+
+
+def _puts_create(cls, ids: list[str]) -> bool:
+    """Whether an update may create these records: only on the /DESIGN singletons
+    the SDK measured taking a PUT on a fresh document, and only their record 1."""
+    endpoint = cls.ENDPOINT
+    return (
+        endpoint.startswith("/DESIGN/")
+        and endpoint.rsplit("/", 1)[1] in PUT_CREATES_SINGLETONS
+        and ids == ["1"]
+    )
 
 
 def _writable(table: str, method: str):
@@ -484,6 +499,10 @@ DESIGN_NOTE = (
     "Civil refuses the RC and steel design code selection; a DELETE may reset a "
     "record to defaults instead of removing it."
 )
+# /DESIGN tables holding one record that a PUT creates on a fresh document
+# (SDK live notes, 2026-09-28/29: written by PUT, no POST). Listed by hand on
+# purpose: a new GET/PUT-only table in the SDK must not inherit this.
+PUT_CREATES_SINGLETONS = frozenset({"DCO", "DCTL", "LLRF", "LMRR", "SRDF"})
 
 
 def _preview(cls, **fields: Any) -> dict[str, Any]:
@@ -524,7 +543,8 @@ def run_analysis(product: Product, confirm_token: str | None = None) -> dict:
     if document.path is None:
         raise ToolError(
             "The open document has never been saved; analysing it would raise a Save "
-            "As dialog that blocks NX. Ask the user to save it in NX first."
+            "As dialog that blocks NX. Give it a file first: save_copy (with the user's "
+            "OK), or the user saves it in NX."
         )
     token = _token("analysis", product, document.path, document.unsaved_changes)
     if confirm_token is None:
@@ -535,53 +555,72 @@ def run_analysis(product: Product, confirm_token: str | None = None) -> dict:
                 "confirm_token": token}
     _check_token(confirm_token, token)
     timeout = config.analysis_timeout()
-    client = _client(product, timeout=timeout)
-    # NX may stop before solving to ask something (e.g. "Check Changed Story
-    # Information"), and the call then waits on the user. Watch for a window
-    # that was not there before, and say so at once instead of going quiet.
-    windows_before = nx_window.other_windows(product)
     started = time.monotonic()
-    pool = ThreadPoolExecutor(max_workers=1)
-    future = pool.submit(doc.analyze, client=client)
-    pool.shutdown(wait=False)
-    while True:
-        try:
-            response = future.result(timeout=DIALOG_POLL_SECONDS)
-            break
-        except FutureTimeout:
-            dialogs = sorted(nx_window.other_windows(product) - windows_before)
-            if dialogs:
-                future.add_done_callback(_log_late_analysis)
-                return {
-                    "status": "waiting_for_nx_dialog",
-                    "nx_dialog": dialogs,
-                    "seconds": round(time.monotonic() - started, 1),
-                    "message": (
-                        "The analysis started, and NX is now asking the user something in "
-                        "the window(s) named above. Ask the user to answer it in NX. Do not "
-                        "start the analysis again: it continues once the dialog is answered. "
-                        "Read results with result_table afterwards."
-                    ),
-                }
-        except MidasConnectionError as exc:
-            if isinstance(exc.__cause__, requests.Timeout):
-                raise ToolError(
-                    f"No answer within {timeout:g} s. The analysis may still be running, "
-                    "or NX may show a dialog. Ask the user to look at the NX window; do "
-                    "not start the analysis again." + _open_windows_note(product)
-                ) from exc
-            raise
+    response, dialogs = _call_watching_dialogs(
+        product, "analysis", timeout, lambda: doc.analyze(client=_client(product, timeout))
+    )
+    if dialogs:
+        return {
+            "status": "waiting_for_nx_dialog",
+            "nx_dialog": dialogs,
+            "seconds": round(time.monotonic() - started, 1),
+            "message": (
+                "The analysis started, and NX is now asking the user something in the "
+                "window(s) named above. Ask the user to answer it in NX. Do not start the "
+                "analysis again: it continues once the dialog is answered. Read results "
+                "with result_table afterwards."
+            ),
+        }
     return {
         "status": "done",
-        "server_message": response.get("message") if isinstance(response, dict) else response,
+        "server_message": _server_message(response),
         "seconds": round(time.monotonic() - started, 1),
     }
 
 
-def _log_late_analysis(future) -> None:
-    """How an analysis we stopped waiting for ended; stderr only, for the log."""
+def _call_watching_dialogs(product: Product, what: str, timeout: float, call):
+    """Run a long NX call; ``(response, [])``, or ``(None, titles)`` as soon as NX
+    opens a window that was not there before (a question to the user, e.g.
+    "Check Changed Story Information"), instead of waiting on it in silence.
+
+    The call goes on in the background and finishes once the user answers.
+    """
+    windows_before = nx_window.other_windows(product)
+    pool = ThreadPoolExecutor(max_workers=1)
+    future = pool.submit(call)
+    pool.shutdown(wait=False)
+    while True:
+        try:
+            return future.result(timeout=DIALOG_POLL_SECONDS), []
+        except FutureTimeout:
+            dialogs = sorted(nx_window.other_windows(product) - windows_before)
+            if dialogs:
+                future.add_done_callback(functools.partial(_log_late_call, what))
+                return None, dialogs
+        except MidasConnectionError as exc:
+            if isinstance(exc.__cause__, requests.Timeout):
+                raise ToolError(
+                    f"No answer within {timeout:g} s. The {what} may still be running, or "
+                    f"NX may show a dialog. Ask the user to look at the NX window; do not "
+                    f"start the {what} again." + _open_windows_note(product)
+                ) from exc
+            raise
+
+
+def _log_late_call(what: str, future) -> None:
+    """How a call we stopped waiting for ended; stderr only, for the log."""
     error = future.exception()
-    log.info("analysis finished after a dialog: %s", error or future.result())
+    log.info("%s finished after a dialog: %s", what, error or future.result())
+
+
+def _server_message(response: Any) -> Any:
+    """NX's own words from a response (CLAUDE.md rule 6), passed on as they are."""
+    return response.get("message") if isinstance(response, dict) else response
+
+
+def _by_id(key: str) -> tuple[int, str]:
+    """Sort record ids as numbers: "2" before "10"."""
+    return len(key), key
 
 
 @mcp.tool(annotations=SWITCHES_FILE)
@@ -602,38 +641,76 @@ def save_copy(product: Product, confirm_token: str | None = None) -> dict:
             "Cannot see the NX window on this PC, so cannot check that the copy is "
             "written. Use Save As in NX itself."
         )
-    token = _token("save_copy", product, document.path, document.unsaved_changes)
+    folder = _output_folder()
+    token = _token("save_copy", product, document.path, document.unsaved_changes, str(folder))
     if confirm_token is None:
-        warning = (
-            f"NX will save the model as a new file in {config.output_dir()} and go on "
-            "working on that copy. "
-        )
+        warning = f"NX will save the model as a new file in {folder} and go on working on that copy. "
         if document.path is None:
             warning += "The open document has never been saved; the copy becomes its file."
         else:
             warning += f"{document.path} stays as it was last saved" + (
                 ", without the changes not yet saved." if document.unsaved_changes else "."
             )
-        return {"preview": True, "folder": str(config.output_dir()),
-                "original": document.path, "warning": warning, "confirm_token": token}
+        return {"preview": True, "folder": str(folder), "original": document.path,
+                "warning": warning, "confirm_token": token}
     _check_token(confirm_token, token)
     path = _generated_path(SAVE_PREFIX, product, SAVE_EXTENSIONS[product])
-    response = doc.save_as(path.as_posix(), client=_client(product))
-    message = response.get("message") if isinstance(response, dict) else response
+    # A big model takes a while to write, and a refused path raises a modal
+    # in NX (Gen) while the call hangs: the same watch as run_analysis.
+    timeout = config.save_timeout()
+    response, dialogs = _call_watching_dialogs(
+        product, "save", timeout,
+        lambda: doc.save_as(path.as_posix(), client=_client(product, timeout)),
+    )
+    if dialogs:
+        return {
+            "status": "waiting_for_nx_dialog",
+            "nx_dialog": dialogs,
+            "file": str(path),
+            "message": (
+                "NX is asking the user something in the window(s) named above while saving. "
+                "Ask the user to answer it in NX, then check the window title for which "
+                "file is open. Do not save again until they have."
+            ),
+        }
+    message = _server_message(response)
     # Civil answers "command complete" for a save it did not write (SDK live
     # notes); the disk and the window title are what count.
-    if not _file_landed(path):
-        raise ToolError(f"NX answered {message!r}, but {path} is not on disk: nothing was saved.")
-    now = nx_window.open_document(product)
-    result: dict[str, Any] = {"applied": True, "file": str(path), "server_message": message,
-                              "now_open": now.path if now else None}
-    if now is None or now.path is None or (
-        os.path.normcase(now.path) != os.path.normcase(str(path.with_suffix("")))
-    ):
+    if not _file_landed(path, seconds=SAVE_LANDING_SECONDS):
+        now = nx_window.open_document(product)
+        raise ToolError(
+            f"NX answered {message!r}, but {path} is not on disk. Ask the user to look at "
+            f"the NX window for a dialog, and do not save again until they have. The "
+            f"window shows {now.path if now and now.path else 'no file'} as open."
+            + _open_windows_note(product)
+        )
+    now = _wait_for_title(product, path)
+    result: dict[str, Any] = {"applied": True, "status": "done", "file": str(path),
+                              "server_message": message, "now_open": now.path if now else None}
+    if not _shows(now, path):
         result["warning"] = (
             "The copy is on disk, but the NX window does not show it as the open document."
         )
     return result
+
+
+def _shows(document: nx_window.Document | None, path: Path) -> bool:
+    """Whether the NX title names this file (it has been seen without the extension)."""
+    if document is None or document.path is None:
+        return False
+    shown = os.path.normcase(document.path)
+    return shown in {os.path.normcase(str(path)), os.path.normcase(str(path.with_suffix("")))}
+
+
+def _wait_for_title(product: Product, path: Path) -> nx_window.Document | None:
+    """The open document, given the title a few seconds to catch up with a save."""
+    document = nx_window.open_document(product)
+    for _ in range(12):
+        if _shows(document, path):
+            break
+        time.sleep(0.25)
+        document = nx_window.open_document(product)
+    return document
 
 
 @mcp.tool(annotations=CHANGES_MODEL)
@@ -649,9 +726,9 @@ def write_records(
 
     records: {id: fields}, e.g. {"13": {"X": 0, "Y": 0, "Z": 6.4}} for NODE; see
     describe_table for the fields (or read_table, for /DESIGN). "create"
-    refuses ids that exist, "update" ids that do not, except on a table with
-    no POST (most /DESIGN tables: one record, "update" only), where "update"
-    also creates it. At most 50 records. After applying, the
+    refuses ids that exist, "update" ids that do not, except record "1" of the
+    one-record /DESIGN tables DCO, DCTL, LLRF, LMRR and SRDF, which have no
+    create and are made by their first update. At most 50 records. After applying, the
     table is read back and what actually changed is returned; some tables store
     a new record under an id of their own choosing, so trust "added", not the
     ids you sent. Any write discards the analysis results.
@@ -667,12 +744,13 @@ def write_records(
         clash = [i for i in ids if i in before]
         if clash:
             raise ToolError(f"{name} already has ids {clash}; use mode='update' for those.")
-    elif "POST" in cls.METHODS:
+    elif not _puts_create(cls, ids):
         missing = [i for i in ids if i not in before]
         if missing:
-            raise ToolError(f"{name} has no ids {missing}; use mode='create' for those.")
-    # Otherwise a PUT-only table (most /DESIGN singletons): its PUT is also how
-    # the record comes to exist on a fresh document (SDK live notes).
+            hint = "use mode='create' for those" if "POST" in cls.METHODS else (
+                "this table has no create, and an update here does not make new records"
+            )
+            raise ToolError(f"{name} has no ids {missing}; {hint}.")
     current = {i: before[i] for i in ids if i in before}
     token = _token("write", product, name, mode, payload, current, len(before))
     if confirm_token is None:
@@ -737,13 +815,16 @@ def delete_records(
                               "server_response": _small(responses)}
     gone = set(result["removed"])
     if gone != set(present):
-        kept = sorted(set(present) - gone, key=lambda k: (len(k), k))
+        kept = sorted(set(present) - gone, key=_by_id)
+        extra = sorted(gone - set(present), key=_by_id)
         reset = [k for k in kept if k in result["changed"]]
         unchanged = [k for k in kept if k not in result["changed"]]
         notes = [f"ids {reset} are still there, reset by NX (see changed)"] if reset else []
         if unchanged:
             notes.append(f"ids {unchanged} are still there, unchanged: NX did not delete them")
-        result["warning"] = "; ".join(notes) + "."
+        if extra:
+            notes.append(f"ids {extra} are gone too, although they were not asked for")
+        result["warning"] = f"Asked to delete {present}: " + "; ".join(notes) + "."
     side = {t: (n, len(_records(tables[t].get(client=client))[0])) for t, n in counts.items()}
     side = {t: {"before": b, "after": a} for t, (b, a) in side.items() if b != a}
     if side:
