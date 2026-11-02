@@ -14,13 +14,24 @@ the released package, so this project exercises exactly what users install.
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
-pip install -e ".[dev]"          # mcp[cli] 2.x, midas-nx, pytest, ruff
+pip install -e ".[dev]"          # mcp[cli] 2.x, midas-nx, pytest, ruff, build, twine
 pytest                           # offline tests; no NX needed
-ruff check src tests
+ruff check src tests scripts
 npx @modelcontextprotocol/inspector .venv\Scripts\python.exe -m midas_nx_mcp.server
 ```
 
 The server runs over **stdio** and is launched by the MCP client (see README).
+Installed, it is the `midas-nx-mcp` command (`uvx midas-nx-mcp`) and takes its
+settings from environment variables only; a source checkout also reads `.env`.
+
+## Releasing
+
+GitHub `Dennis5882/midas-nx-mcp` (public) -> PyPI `midas-nx-mcp`, the same way
+as `midas-nx`: bump `__version__` in `src/midas_nx_mcp/__init__.py`, commit,
+push, then publish a GitHub Release tagged `v<version>`. `publish.yml` checks
+the tag against `__version__`, tests, builds, starts the wheel over stdio
+(`scripts/wheel_smoke_test.py`) and uploads by Trusted Publishing (environment
+`pypi`). A version on PyPI cannot be replaced, so never reuse a number.
 
 ## How this project is laid out
 

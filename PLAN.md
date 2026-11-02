@@ -109,7 +109,9 @@ Never: see CLAUDE.md rule 4.
 
 - Does Claude Desktop on the author's plan allow local MCP servers?
   (Settings > Developer. Check before building much.)
-- Distribute? If ever shared, publish to PyPI as `midas-nx-mcp` and run with
-  `uvx`; for now, local only.
+- Distribution: public on GitHub (`Dennis5882/midas-nx-mcp`) and PyPI
+  (`midas-nx-mcp`, run with `uvx`), released from GitHub Releases. Next: a
+  `.mcpb` for Claude Desktop users who should not edit JSON, as a thin
+  wrapper around the PyPI package (check the current MCPB spec for Python).
 - One server per product, or one server with a `product` argument? Starting
   with one server and an argument.

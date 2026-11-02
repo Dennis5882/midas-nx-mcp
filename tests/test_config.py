@@ -13,6 +13,15 @@ def test_environment_wins_over_env_file(monkeypatch):
     assert config.mapi_key("gen") == "from-env"
 
 
+def test_installed_package_reads_no_env_file(monkeypatch, tmp_path):
+    (tmp_path / ".env").write_text("MIDAS_MAPI_KEY_GEN=from-file\n", encoding="utf-8")
+    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)  # no pyproject.toml here
+    monkeypatch.delenv("MIDAS_MAPI_KEY_GEN", raising=False)
+    assert config.setting("MIDAS_MAPI_KEY_GEN") == ""
+    (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+    assert config.setting("MIDAS_MAPI_KEY_GEN") == "from-file"
+
+
 def test_missing_key_gives_a_hint(monkeypatch):
     monkeypatch.setenv("MIDAS_MAPI_KEY_CIVIL", "")
     monkeypatch.setattr(config, "_read_env_file", dict)

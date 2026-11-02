@@ -4,19 +4,55 @@ build-backend = "hatchling.build"
 
 [project]
 name = "midas-nx-mcp"
-version = "0.1.0"
-description = "Local MCP server for MIDAS Gen NX / Civil NX, built on midas-nx"
+# Read from src/midas_nx_mcp/__init__.py's __version__ (see [tool.hatch.version]).
+dynamic = ["version"]
+description = "Local MCP server for MIDAS Gen NX / Civil NX, built on midas-nx - not an official MIDAS IT product"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
+authors = [{ name = "Dennis" }]
+keywords = [
+  "mcp", "model-context-protocol", "claude", "midas", "midas-nx",
+  "midas-gen-nx", "midas-civil-nx", "structural-engineering",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: Microsoft :: Windows",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "mcp[cli]>=2.3,<3",
     "midas-nx>=2.10.6",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "build", "twine"]
+
+[project.scripts]
+midas-nx-mcp = "midas_nx_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/Dennis5882/midas-nx-mcp"
+Issues = "https://github.com/Dennis5882/midas-nx-mcp/issues"
+SDK = "https://github.com/Dennis5882/MIDAS-API-NX-SDK"
+
+[tool.hatch.version]
+path = "src/midas_nx_mcp/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/midas_nx_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100

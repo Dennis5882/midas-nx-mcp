@@ -1,7 +1,9 @@
-"""Settings from the project's .env, located from this file, not the cwd.
+"""Settings from environment variables, or from a source checkout's .env.
 
-The MCP client launches the server with a working directory of its own
-choosing, so a relative ".env" would be looked up in the wrong place.
+Installed (``uvx midas-nx-mcp``), the MCP client passes settings as
+environment variables. Run from a checkout, the project's .env is read too,
+located from this file, not the cwd: the MCP client launches the server with
+a working directory of its own choosing.
 """
 
 from __future__ import annotations
@@ -13,10 +15,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PRODUCTS = ("gen", "civil")
 
 
+def _env_file() -> Path | None:
+    """The checkout's .env; None when installed, where PROJECT_ROOT is site-packages' parent."""
+    if not (PROJECT_ROOT / "pyproject.toml").is_file():
+        return None
+    return PROJECT_ROOT / ".env"
+
+
 def _read_env_file() -> dict[str, str]:
-    path = PROJECT_ROOT / ".env"
+    path = _env_file()
     values: dict[str, str] = {}
-    if not path.exists():
+    if path is None or not path.exists():
         return values
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -38,7 +47,8 @@ def mapi_key(product: str) -> str:
     key = setting(f"MIDAS_MAPI_KEY_{product.upper()}")
     if not key:
         raise ValueError(
-            f"MIDAS_MAPI_KEY_{product.upper()} is not set (Hint: fill it in .env)"
+            f"MIDAS_MAPI_KEY_{product.upper()} is not set (Hint: add it to the env of "
+            "this server in the MCP client's settings, or to .env in a source checkout)"
         )
     return key
 
