@@ -20,17 +20,28 @@ _DOCUMENT = re.compile(r"\[([^\]]*)\]")
 _SAVED_PATH = re.compile(r"^[A-Za-z]:\\|^\\\\")
 
 
+# The main window's title starts with the product name; a dialog's does not
+# (a message box titled just "MIDAS GEN NX" has no brackets).
+_MAIN = re.compile(r"^MIDAS (GEN|CIVIL) NX\b", re.IGNORECASE)
+# Live, Gen NX 2026 with no project: "MIDAS GEN NX 2026 - [Start Page]" - one
+# bracket where a document has two, the second naming the program. Told by
+# that shape, not by the words, which a localized NX may change.
+
+
 @dataclass(frozen=True)
 class Document:
     path: str | None  # None for a document that was never saved
     unsaved_changes: bool
+    project_open: bool = True  # False on the start page
 
 
 def parse_title(title: str) -> Document | None:
-    match = _DOCUMENT.search(title)
-    if not match:
+    groups = _DOCUMENT.findall(title)
+    if not groups or not _MAIN.match(title):
         return None
-    text = match.group(1).strip()
+    if len(groups) == 1:
+        return Document(None, False, project_open=False)
+    text = groups[0].strip()
     dirty = text.endswith("*")
     text = text.rstrip("*").strip()
     return Document(text if _SAVED_PATH.match(text) else None, dirty)
@@ -69,6 +80,14 @@ def window_titles(product: str) -> list[str]:
     callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)(visit)
     user32.EnumWindows(callback, 0)
     return titles
+
+
+def is_running(product: str) -> bool | None:
+    """Whether the product shows any window on this PC; None off Windows, where
+    nothing can be seen. False also when NX runs on another PC."""
+    if sys.platform != "win32":
+        return None
+    return bool(window_titles(product))
 
 
 def other_windows(product: str) -> set[str]:

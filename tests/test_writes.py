@@ -451,3 +451,21 @@ def test_save_copy_needs_the_nx_window(model, monkeypatch):
 )
 def test_window_title_gives_the_document(title, path, dirty):
     assert nx_window.parse_title(title) == nx_window.Document(path, dirty)
+
+
+@pytest.mark.parametrize(
+    "title", ["Material Data", "MIDAS GEN NX", "Section Data [1]", "Properties"]
+)
+def test_dialog_titles_are_not_the_main_window(title):
+    assert nx_window.parse_title(title) is None
+
+
+def test_the_start_page_is_no_project(model, monkeypatch):
+    start = nx_window.parse_title("MIDAS GEN NX 2026 - [Start Page]")
+    assert start == nx_window.Document(None, False, project_open=False)
+    # Told by shape, not words: a localized start page reads the same.
+    assert nx_window.parse_title("MIDAS CIVIL NX 2026 - [시작 페이지]") == start
+    _document(monkeypatch, start)
+    for tool in (server.run_analysis, server.save_copy):
+        with pytest.raises(ToolError, match="start page"):
+            tool("gen")

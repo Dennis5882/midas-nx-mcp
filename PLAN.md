@@ -63,7 +63,28 @@ Done when:
       "DL(ST)" after a by-hand analysis in Gen NX
 - [x] a refused table name / a wrong product / a missing key each give a clear message
 - [x] a result table without analysis returns NX's own text ("no analysis result")
-- [ ] NX not running, and a dialog-blocked session (timeout message), seen live
+- [ ] NX not running, and a dialog-blocked session (timeout message), seen live.
+      2026-11-03, Gen: a dialog the *user* opened does not block the API -
+      with "Material Data" open, and again with File > Save As open,
+      `check_connection`, `read_table` and `model_summary` answered in 0.4-0.8 s
+      and the window watch listed the dialog. The blocking seen so far was a
+      dialog NX raised *during* an API call (analysis, Save As of an unsaved
+      document). A write with a user dialog open was not tried.
+      NX closed (Gen, same day): verify answers "disconnected", a read
+      "404: client does not exist" (reads like a wrong id), and `run_analysis`
+      said "run it in NX (F5)". Now, when the product has no window on this
+      PC, every error and `check_connection` add "NX is not running ... or it
+      runs on another PC". Restarted, Gen shows "[Start Page]" with no project
+      ("The project is not opened" on a read); `run_analysis` and `save_copy`
+      took that for a never-saved document and now say "no project is open".
+      The start page is told by the title's shape (one bracket, not two), not
+      its words. Civil's start page, seen live: "MIDAS CIVIL NX - [Start Page]"
+      (no year, unlike its document titles); `run_analysis` and `save_copy`
+      refused it as "no project is open", a read got "The project is not
+      opened". (The first close only left an untitled document.) On Gen's start page,
+      the SDK's `doc.new_project()` (called directly, not a tool) answered
+      "command complete" in 6.1 s and opened "[제목 없음]".
+      Still to see: the timeout message itself
 - [x] output size is capped (large tables are truncated with a note, not dumped)
 - [ ] `result_table` never passes `opt_cs`: it switches NX's construction-stage
       view, a state change. Revisit if CS results are needed.

@@ -79,7 +79,9 @@ def nx(monkeypatch, tmp_path):
     monkeypatch.setenv("MIDAS_OUTPUT_DIR", str(tmp_path))
     # Not the windows of a real NX on this PC; tests set their own.
     session.windows = set()
+    session.running = True
     monkeypatch.setattr(nx_window, "other_windows", lambda product: set(session.windows))
+    monkeypatch.setattr(nx_window, "is_running", lambda product: session.running)
     yield session
     for method, url, body in session.sent:
         # Never, in any test: a DELETE of a whole table, or /doc/NEW|OPEN|IMPORT*.

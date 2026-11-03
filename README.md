@@ -10,6 +10,8 @@ Personal, employee-led project; **not an official MIDAS IT product**.
 > Status: alpha. Verified live on Gen NX 2026 and Civil NX 2026 on small test
 > models (see `PLAN.md`); not yet used on large production models.
 
+사용 설명서 (한국어): [`docs/user_guide_ko.md`](docs/user_guide_ko.md)
+
 ## What you can ask
 
 - "Summarise the Gen model." - node, element, material, section, load case counts

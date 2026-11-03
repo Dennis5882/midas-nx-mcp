@@ -8,6 +8,7 @@ from __future__ import annotations
 import difflib
 import functools
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -107,6 +108,58 @@ def _open_windows_note(product: Any) -> str:
     return f" NX windows open now: {', '.join(repr(t) for t in titles)}." if titles else ""
 
 
+def _is_running(product: Any) -> bool | None:
+    """nx_window.is_running, or None when it cannot tell (or fails: this runs
+    while another error is being reported, and must not replace it)."""
+    if product not in nx_window.EXECUTABLES:
+        return None
+    try:
+        return nx_window.is_running(product)
+    except Exception:
+        log.exception("could not list the NX windows")
+        return None
+
+
+def _not_running_note(product: Any) -> str:
+    """A hint when the product has no window here: closed, or running on another PC."""
+    if _is_running(product) is not False:
+        return ""
+    return (
+        f" No {product.capitalize()} NX window is open on this PC: NX is not running "
+        "(start it and connect the API under Apps > API Settings), or it runs on another PC."
+    )
+
+
+# Live, Gen NX closed: a read answers "404: client does not exist", which
+# reads like a wrong id. Only this answer gets the note; NX's other errors
+# are passed on as they are (CLAUDE.md rule 6).
+NOT_CONNECTED_TEXT = "client does not exist"
+
+
+def _open_project(product: Product, cannot_see: str) -> nx_window.Document:
+    """The document NX has open, or a ToolError saying why there is none to act on.
+
+    Every tool that needs the open document goes through here, so the start
+    page (no project) is refused in one place.
+    """
+    document = nx_window.open_document(product)
+    if document is None:
+        raise ToolError(_not_running_note(product).strip() or cannot_see)
+    if not document.project_open:
+        raise ToolError(
+            "NX shows its start page: no project is open. Ask the user to open or "
+            "create one in NX."
+        )
+    return document
+
+
+def _product_of(signature: inspect.Signature, args: tuple, kwargs: dict) -> Any:
+    try:
+        return signature.bind(*args, **kwargs).arguments.get("product")
+    except TypeError:
+        return None
+
+
 def _guarded(fn):
     """Turn every failure into a ToolError the model can read.
 
@@ -114,21 +167,28 @@ def _guarded(fn):
     would swallow the NX server's own message (CLAUDE.md rule 6).
     """
 
+    signature = inspect.signature(fn)
+
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
         except MidasConnectionError as exc:
+            product = _product_of(signature, args, kwargs)
             if isinstance(exc.__cause__, requests.Timeout):
-                product = kwargs.get("product", args[0] if args else None)
                 raise ToolError(
                     f"NX did not answer within {config.timeout():g} s. NX is probably "
                     "showing a dialog that blocks the API. Ask the user to look at the "
                     "NX window and close it; do not retry until they have."
                     + _open_windows_note(product)
                 ) from exc
-            raise ToolError(str(exc)) from exc
-        except (MidasAPIError, ValueError) as exc:
+            raise ToolError(str(exc) + _not_running_note(product)) from exc
+        except MidasAPIError as exc:
+            note = ""
+            if NOT_CONNECTED_TEXT in str(exc):
+                note = _not_running_note(_product_of(signature, args, kwargs))
+            raise ToolError(str(exc) + note) from exc
+        except ValueError as exc:
             raise ToolError(str(exc)) from exc
 
     return wrapper
@@ -171,7 +231,19 @@ def check_connection(product: Product) -> dict:
     """
     health = _client(product).verify_connection()
     # The response also carries the MAPI account's email; leave it out.
-    return {"product": product, "status": health.get("status"), "program": health.get("program")}
+    result = {"product": product, "status": health.get("status"), "program": health.get("program")}
+    if result["status"] != "connected":
+        running = _is_running(product)
+        if running is False:
+            result["hint"] = _not_running_note(product).strip()
+        elif running:
+            result["hint"] = "NX is running, but its API is not connected: Apps > API Settings in NX."
+        else:
+            result["hint"] = (
+                "NX is closed, or its API is not connected (Apps > API Settings in NX); "
+                "this server cannot see NX windows to tell which."
+            )
+    return result
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -534,12 +606,11 @@ def run_analysis(product: Product, confirm_token: str | None = None) -> dict:
     this PC; a new, never-saved document would raise a Save As dialog that
     blocks NX, and is refused here.
     """
-    document = nx_window.open_document(product)
-    if document is None:
-        raise ToolError(
-            "Cannot see the NX window on this PC, so cannot confirm the document is "
-            "saved. Run the analysis in NX itself (F5)."
-        )
+    document = _open_project(
+        product,
+        "Cannot see the NX window on this PC, so cannot confirm the document is saved. "
+        "Run the analysis in NX itself (F5).",
+    )
     if document.path is None:
         raise ToolError(
             "The open document has never been saved; analysing it would raise a Save "
@@ -635,12 +706,11 @@ def save_copy(product: Product, confirm_token: str | None = None) -> dict:
     .mcbz for Civil). Also the way to give a never-saved document a file, which
     run_analysis needs.
     """
-    document = nx_window.open_document(product)
-    if document is None:
-        raise ToolError(
-            "Cannot see the NX window on this PC, so cannot check that the copy is "
-            "written. Use Save As in NX itself."
-        )
+    document = _open_project(
+        product,
+        "Cannot see the NX window on this PC, so cannot check that the copy is written. "
+        "Use Save As in NX itself.",
+    )
     folder = _output_folder()
     token = _token("save_copy", product, document.path, document.unsaved_changes, str(folder))
     if confirm_token is None:

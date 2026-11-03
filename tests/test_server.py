@@ -7,13 +7,53 @@ import requests
 from mcp.server.mcpserver.exceptions import ToolError
 
 from conftest import KEY
-from midas_nx_mcp import server
+from midas_nx_mcp import nx_window, server
 
 
 def test_check_connection_leaves_out_the_email(nx):
     nx.routes["/mapikey/verify"] = {"status": "connected", "program": "Gen", "email": "a@b.c"}
     result = server.check_connection("gen")
     assert result == {"product": "gen", "status": "connected", "program": "Gen"}
+
+
+def test_a_closed_nx_is_named_as_such(nx, monkeypatch):
+    # Live, Gen NX closed: verify says "disconnected", a read answers 404.
+    nx.running = False
+    monkeypatch.setattr(nx_window, "open_document", lambda product: None)
+    nx.routes["/mapikey/verify"] = {"status": "disconnected", "program": "gen"}
+    assert "NX is not running" in server.check_connection("gen")["hint"]
+    nx.routes["/db/NODE"] = ({"message": "client does not exist"}, 404)
+    with pytest.raises(ToolError, match="404.*NX is not running"):
+        server.read_table("gen", "NODE")
+    with pytest.raises(ToolError, match="^No Gen NX window.*NX is not running"):
+        server.run_analysis("gen")
+
+
+def test_a_running_nx_with_its_api_off_is_told_apart(nx):
+    nx.routes["/mapikey/verify"] = {"status": "disconnected", "program": "gen"}
+    assert "is running, but its API" in server.check_connection("gen")["hint"]
+    # Off Windows nothing can be seen: neither claim is made.
+    nx.running = None
+    hint = server.check_connection("gen")["hint"]
+    assert "cannot see" in hint and "is running" not in hint
+
+
+def test_other_nx_errors_pass_unchanged_even_with_nx_closed(nx):
+    nx.running = False
+    nx.routes["/db/NODE"] = {"error": {"message": "invalid data"}}
+    with pytest.raises(ToolError) as caught:
+        server.read_table("gen", "NODE")
+    assert "invalid data" in str(caught.value)
+    assert "not running" not in str(caught.value)
+
+
+def test_a_failing_window_scan_does_not_hide_the_nx_error(nx, monkeypatch):
+    def broken(product):
+        raise OSError("EnumWindows failed")
+
+    monkeypatch.setattr(nx_window, "is_running", broken)
+    with pytest.raises(ToolError, match="404"):
+        server.read_table("gen", "NODE")
 
 
 def test_read_table_caps_rows_and_says_so(nx):
