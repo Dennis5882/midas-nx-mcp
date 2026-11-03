@@ -12,7 +12,7 @@
 Ask Claude Desktop in plain language about the model open in Gen NX or
 Civil NX ("how many nodes?", "show the reactions for DL", "which sections are
 used?") and, later, make small, reversible edits - with the safety rules in
-CLAUDE.md enforced by the server, not left to the model's judgement.
+AGENTS.md enforced by the server, not left to the model's judgement.
 
 Personal use, free: a local stdio server on this PC. No hosting.
 
@@ -140,7 +140,7 @@ before the user answered.
       (so Save As does re-point the open document through the API too), and
       the analysis results survived the save.
 
-Never: see CLAUDE.md rule 4.
+Never: see AGENTS.md rule 4.
 
 ## Open questions
 

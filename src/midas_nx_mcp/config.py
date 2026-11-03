@@ -68,7 +68,7 @@ def save_timeout() -> float:
 
 
 def output_dir() -> Path:
-    """Where NX writes files this server asks for (CLAUDE.md rule 5).
+    """Where NX writes files this server asks for (AGENTS.md rule 5).
 
     The path is resolved by NX, on whatever PC runs it. This server reads the
     file back from the same path, so it only works when NX runs here.

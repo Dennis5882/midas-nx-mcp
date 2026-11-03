@@ -123,7 +123,7 @@ ruff check src tests scripts
 npx @modelcontextprotocol/inspector .venv\Scripts\python.exe -m midas_nx_mcp.server
 ```
 
-`CLAUDE.md` holds the safety rules every tool follows, and `PLAN.md` what has
+`AGENTS.md` holds the safety rules every tool follows, and `PLAN.md` what has
 been verified live and what is open.
 
 ## License

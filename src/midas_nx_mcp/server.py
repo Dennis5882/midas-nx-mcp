@@ -63,7 +63,7 @@ SWITCHES_FILE = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
 )
 SAVE_PREFIX = "mcp-save-"
-SAVE_EXTENSIONS = {"gen": ".mgbx", "civil": ".mcbz"}  # CLAUDE.md rule 5
+SAVE_EXTENSIONS = {"gen": ".mgbx", "civil": ".mcbz"}  # AGENTS.md rule 5
 SAVE_LANDING_SECONDS = 30.0  # a big model is still being written after NX answers
 MAX_WRITE_RECORDS = 50
 DIALOG_POLL_SECONDS = 1.0
@@ -132,7 +132,7 @@ def _not_running_note(product: Any) -> str:
 
 # Live, Gen NX closed: a read answers "404: client does not exist", which
 # reads like a wrong id. Only this answer gets the note; NX's other errors
-# are passed on as they are (CLAUDE.md rule 6).
+# are passed on as they are (AGENTS.md rule 6).
 NOT_CONNECTED_TEXT = "client does not exist"
 
 
@@ -164,7 +164,7 @@ def _guarded(fn):
     """Turn every failure into a ToolError the model can read.
 
     The MCP SDK hides the text of any other exception from the client, which
-    would swallow the NX server's own message (CLAUDE.md rule 6).
+    would swallow the NX server's own message (AGENTS.md rule 6).
     """
 
     signature = inspect.signature(fn)
@@ -483,7 +483,7 @@ def _output_folder() -> Path:
 
 
 def _generated_path(prefix: str, product: str, suffix: str) -> Path:
-    """A new file name in the output folder (CLAUDE.md rule 5); never one we were given."""
+    """A new file name in the output folder (AGENTS.md rule 5); never one we were given."""
     stamp = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
     return _output_folder() / f"{prefix}{product}-{stamp}{suffix}"
 
@@ -685,7 +685,7 @@ def _log_late_call(what: str, future) -> None:
 
 
 def _server_message(response: Any) -> Any:
-    """NX's own words from a response (CLAUDE.md rule 6), passed on as they are."""
+    """NX's own words from a response (AGENTS.md rule 6), passed on as they are."""
     return response.get("message") if isinstance(response, dict) else response
 
 
