@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Dennis5882/midas-nx-mcp",
+  "title": "MIDAS Gen NX / Civil NX",
+  "description": "Read and carefully change the model open in MIDAS Gen NX or Civil NX on this PC.",
+  "repository": {
+    "url": "https://github.com/Dennis5882/midas-nx-mcp",
+    "source": "github"
+  },
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "midas-nx-mcp",
+      "version": "0.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MIDAS_MAPI_KEY_GEN",
+          "description": "Gen NX MAPI key (Apps > API Settings in Gen NX). Needed for product=gen.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "MIDAS_MAPI_KEY_CIVIL",
+          "description": "Civil NX MAPI key (Apps > API Settings in Civil NX). Needed for product=civil.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "MIDAS_OUTPUT_DIR",
+          "description": "Folder NX writes captures and saved copies into. Must exist. Default C:/temp.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

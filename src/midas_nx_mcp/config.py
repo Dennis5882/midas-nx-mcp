@@ -37,8 +37,15 @@ def _read_env_file() -> dict[str, str]:
 
 
 def setting(name: str, default: str = "") -> str:
-    """An environment variable wins over .env."""
-    return os.environ.get(name) or _read_env_file().get(name, default)
+    """An environment variable wins over .env.
+
+    Empty counts as unset, and so does a "${user_config...}" placeholder a
+    .mcpb host may pass through for an option the user left blank.
+    """
+    value = os.environ.get(name, "").strip()
+    if value.startswith("${"):
+        value = ""
+    return value or _read_env_file().get(name, default)
 
 
 def mapi_key(product: str) -> str:
@@ -48,7 +55,8 @@ def mapi_key(product: str) -> str:
     if not key:
         raise ValueError(
             f"MIDAS_MAPI_KEY_{product.upper()} is not set (Hint: add it to the env of "
-            "this server in the MCP client's settings, or to .env in a source checkout)"
+            "this server in the MCP client's settings - for the Claude Desktop bundle, "
+            "Settings > Extensions - or to .env in a source checkout)"
         )
     return key
 

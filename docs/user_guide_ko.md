@@ -48,7 +48,19 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 ## 3. 설치 (AI 앱에 등록)
 
-### 3-1. Claude Desktop
+### 3-0. Claude Desktop: 클릭 한 번으로 (권장)
+
+uv나 Python을 설치할 필요가 없습니다.
+
+1. [최신 릴리스](https://github.com/Dennis5882/midas-nx-mcp/releases/latest)에서
+   `midas-nx-mcp-<버전>.mcpb`를 내려받습니다.
+2. 파일을 더블클릭하거나 Claude Desktop의 설정 > 확장(Extensions)으로 끌어다 놓습니다.
+3. 설치 화면에서 Gen 키와 Civil 키를 입력합니다. 쓰지 않는 제품의 키는 비워 둡니다.
+   저장 폴더(기본 `C:\temp`)와 해석 대기 시간도 여기서 바꿀 수 있습니다.
+
+키는 나중에 설정 > 확장에서 바꿀 수 있습니다. 아래 3-1은 직접 설정 파일을 고치는 방법입니다.
+
+### 3-1. Claude Desktop: 설정 파일 직접 편집
 
 1. 설정 > 개발자(Developer) > **구성 편집(Edit Config)** 을 누릅니다.
    ("사용자 지정 커넥터 추가"가 아닙니다. 그건 원격 서버용입니다.)

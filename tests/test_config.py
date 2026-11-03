@@ -27,3 +27,11 @@ def test_missing_key_gives_a_hint(monkeypatch):
     monkeypatch.setattr(config, "_read_env_file", dict)
     with pytest.raises(ValueError, match="Hint"):
         config.mapi_key("civil")
+
+
+@pytest.mark.parametrize("value", ["", "  ", "${user_config.output_dir}"])
+def test_a_blank_bundle_option_falls_back_to_the_default(monkeypatch, value):
+    # A .mcpb passes options the user left blank as empty, or as the placeholder.
+    monkeypatch.setenv("MIDAS_OUTPUT_DIR", value)
+    monkeypatch.setattr(config, "_read_env_file", dict)
+    assert config.output_dir().as_posix() == "C:/temp"

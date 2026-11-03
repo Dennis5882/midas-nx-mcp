@@ -10,7 +10,9 @@ Personal, employee-led project; **not an official MIDAS IT product**.
 > Status: alpha. Verified live on Gen NX 2026 and Civil NX 2026 on small test
 > models (see `PLAN.md`); not yet used on large production models.
 
-사용 설명서 (한국어): [`docs/user_guide_ko.md`](docs/user_guide_ko.md)
+사용 설명서 (한국어): [`docs/user_guide_ko.md`](https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md)
+
+<!-- mcp-name: io.github.Dennis5882/midas-nx-mcp -->
 
 ## What you can ask
 
@@ -27,11 +29,20 @@ Personal, employee-led project; **not an official MIDAS IT product**.
 - A MAPI key per product (Apps > API Settings in each program). Keys differ
   between Gen and Civil, and a wrong key still reports "connected", so do not
   swap them.
-- [uv](https://docs.astral.sh/uv/) (installs Python and the server for you)
+- [uv](https://docs.astral.sh/uv/) (installs Python and the server for you);
+  not needed for the Claude Desktop bundle below
 
 ## Install
 
-### Claude Desktop
+### Claude Desktop - one click
+
+Download `midas-nx-mcp-<version>.mcpb` from the
+[latest release](https://github.com/Dennis5882/midas-nx-mcp/releases/latest)
+and open it (or drag it onto Settings > Extensions). Claude Desktop installs
+Python and the server itself, and asks for your Gen and Civil keys; leave the
+one you do not use empty. Change them later under Settings > Extensions.
+
+### Claude Desktop - by hand
 
 Settings > Developer > Edit Config (not "Add custom connector": that is for
 remote servers) and add:

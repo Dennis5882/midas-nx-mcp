@@ -32,6 +32,12 @@ push, then publish a GitHub Release tagged `v<version>`. `publish.yml` checks
 the tag against `__version__`, tests, builds, starts the wheel over stdio
 (`scripts/wheel_smoke_test.py`) and uploads by Trusted Publishing (environment
 `pypi`). A version on PyPI cannot be replaced, so never reuse a number.
+After PyPI, the same workflow builds the Claude Desktop bundle
+(`scripts/build_mcpb.py`: a `.mcpb` that pins `midas-nx-mcp==<version>` and
+runs it on the MCPB "uv" runtime), starts it, attaches it to the release, and
+lists both in the MCP Registry as `io.github.Dennis5882/midas-nx-mcp`
+(`server.json`, filled with the version and the bundle's hash at release;
+the README's `mcp-name:` line proves the PyPI package is ours - keep it).
 
 Every release gets notes, written without being asked (`gh release create
 --notes-file`, never empty or only the auto-generated commit list): what

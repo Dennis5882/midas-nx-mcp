@@ -2,11 +2,14 @@
 
 Run with the python of a venv the wheel was installed into, from outside the
 checkout, so nothing is imported from the source tree. Needs no NX and no key.
+Given arguments, starts that command instead, e.g. an unpacked .mcpb bundle:
+``python wheel_smoke_test.py uv run --directory <bundle> server.py``.
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -22,9 +25,18 @@ EXPECTED_TOOLS = {
 
 
 async def main() -> None:
-    command = shutil.which("midas-nx-mcp", path=str(Path(sys.executable).parent))
-    assert command, "the midas-nx-mcp command was not installed next to this python"
-    params = StdioServerParameters(command=command, args=[], env={"MIDAS_MAPI_KEY_GEN": ""})
+    if len(sys.argv) > 1:
+        command, args = sys.argv[1], sys.argv[2:]
+    else:
+        command = shutil.which("midas-nx-mcp", path=str(Path(sys.executable).parent))
+        assert command, "the midas-nx-mcp command was not installed next to this python"
+        args = []
+    # A bundle passes its empty, optional settings as empty variables.
+    env = {"MIDAS_MAPI_KEY_GEN": "", "MIDAS_OUTPUT_DIR": "", "MIDAS_ANALYSIS_TIMEOUT": ""}
+    for name in ("PATH", "SYSTEMROOT", "LOCALAPPDATA", "APPDATA", "USERPROFILE", "TEMP"):
+        if name in os.environ:
+            env[name] = os.environ[name]
+    params = StdioServerParameters(command=command, args=args, env=env)
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
         tools = {tool.name for tool in (await session.list_tools()).tools}
