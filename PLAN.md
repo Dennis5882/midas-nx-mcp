@@ -181,6 +181,27 @@ measured: the dialog is a top-level window of `GenNX.exe` (a watcher logged
 it appear at 00:02:23 and close at 00:03:08), and Claude Desktop relayed it
 before the user answered.
 
+Reference checks (0.3.1), live on Gen NX and Civil NX (2026-11-04). Both runs
+used an untitled, empty document. On each, the tools built 1 MATL, 2 SECT,
+1 THIK, 7 nodes, 2 beams, 1 plate, 1 load case, 1 beam load and 1 nodal load,
+then did the following with the same results on both products:
+
+- Refused before sending:
+  - a beam naming SECT 99
+  - a plate naming SECT 2. SECT 2 existed but THIK 2 did not, so the
+    section field was checked against THIK.
+  - an update moving element 1 to MATL 99
+  - deleting the MATL, SECT, THIK or a node in use
+- Applied:
+  - a beam with valid references, added
+  - the unused SECT 2, deleted
+- Deleting the load case: the preview warned, and `also_changed` then showed
+  BMLD 1 -> 0 and CNLD 1 -> 0.
+
+Gen crashed once during the first attempt. The author pressed New in NX
+while the tool was writing the nodes, and the write timed out. The
+rerun on a restarted Gen went through.
+
 - [x] apply live on the author's test model, with the author's go-ahead
       (write, delete, analysis on Gen; update on Civil)
 - [x] write `/DESIGN` tables. Live on the Civil dummy (2026-11-03): RC `DCTL`
