@@ -11,6 +11,8 @@ Personal, employee-led project; **not an official MIDAS IT product**.
 > models (see `PLAN.md`); not yet used on large production models.
 
 사용 설명서 (한국어): [`docs/user_guide_ko.md`](https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md)
+· 소개 페이지: <https://dennis5882.github.io/midas-nx-mcp/>
+· AI용 요약: [`llms.txt`](https://dennis5882.github.io/midas-nx-mcp/llms.txt)
 
 <!-- mcp-name: io.github.Dennis5882/midas-nx-mcp -->
 

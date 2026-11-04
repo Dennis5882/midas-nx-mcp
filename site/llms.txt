@@ -1,0 +1,107 @@
+# midas-nx-mcp
+
+> 로컬 MCP 서버. Claude Desktop, Claude Code, Codex 같은 AI 앱이 같은 Windows PC에서 실행 중인 MIDAS Gen NX / Civil NX의 열린 모델을 MIDAS NX Open API로 읽고, 사용자가 확인한 변경만 적용하게 한다. 개인 프로젝트(알파)이며 MIDAS IT 공식 제품이 아니다. MIT 라이선스.
+
+이 파일은 AI 에이전트가 사용자의 설치와 사용을 돕도록 쓴 요약이다. 사람용 페이지: https://dennis5882.github.io/midas-nx-mcp/
+
+## 핵심 사실
+
+- 전송 방식: stdio. AI 앱이 서버를 직접 실행하고 종료한다. 원격 서버가 아니다.
+- 실행 명령: `uvx midas-nx-mcp@latest` (PyPI 패키지 `midas-nx-mcp`)
+- Claude Desktop 번들: GitHub 최신 릴리스의 `midas-nx-mcp-<버전>.mcpb`. 더블클릭으로 설치하며 uv나 Python이 따로 필요 없다.
+- MCP Registry 이름: `io.github.Dennis5882/midas-nx-mcp`
+- 필요 조건: Windows. Gen NX 또는 Civil NX가 같은 PC에서 실행 중이고 Open API가 연결되어 있어야 한다(NX의 `Apps > API Settings`).
+- 키: 제품마다 MAPI 키가 다르다(`MIDAS_MAPI_KEY_GEN`, `MIDAS_MAPI_KEY_CIVIL`). 키가 틀려도 연결 확인은 "connected"로 나오므로 두 키를 바꿔 넣지 않도록 사용자에게 확인한다. 키를 채팅이나 로그에 출력하지 않는다.
+
+## 설치 절차 (에이전트가 안내할 순서)
+
+1. 사용자가 쓰는 AI 앱을 확인한다.
+2. Claude Desktop이면: 최신 릴리스에서 `.mcpb`를 받아 더블클릭한다. 설치 화면에서 Gen/Civil 키를 넣고, 쓰지 않는 제품은 비워 둔다. 키는 나중에 `설정 > 확장`에서 바꿀 수 있다.
+3. 그 밖의 앱이면: uv를 설치한 뒤(`powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`) 아래 설정 중 하나를 쓴다.
+4. 확인: NX에서 모델을 연 다음 `check_connection(product="gen")`을 호출한다.
+
+Claude Desktop 설정 파일 (`설정 > 개발자 > 구성 편집`, `claude_desktop_config.json`). 저장한 뒤 앱을 트레이까지 완전히 종료했다가 다시 켠다:
+
+```json
+{
+  "mcpServers": {
+    "midas-nx": {
+      "command": "uvx",
+      "args": ["midas-nx-mcp@latest"],
+      "env": {
+        "MIDAS_MAPI_KEY_GEN": "<Gen NX key>",
+        "MIDAS_MAPI_KEY_CIVIL": "<Civil NX key>"
+      }
+    }
+  }
+}
+```
+
+Claude Code:
+
+```bash
+claude mcp add midas-nx -e MIDAS_MAPI_KEY_GEN=<gen-key> -e MIDAS_MAPI_KEY_CIVIL=<civil-key> -- uvx midas-nx-mcp@latest
+```
+
+Codex (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.midas-nx]
+command = "uvx"
+args = ["midas-nx-mcp@latest"]
+env = { MIDAS_MAPI_KEY_GEN = "<Gen NX key>", MIDAS_MAPI_KEY_CIVIL = "<Civil NX key>" }
+```
+
+## 설정 (환경 변수)
+
+| 변수 | 기본값 | 의미 |
+| --- | --- | --- |
+| MIDAS_MAPI_KEY_GEN | - | Gen NX 키. product="gen"에 필요 |
+| MIDAS_MAPI_KEY_CIVIL | - | Civil NX 키. product="civil"에 필요 |
+| MIDAS_TIMEOUT | 20 | 일반 호출 대기 시간(초). NX 대화상자를 빨리 알아채려고 짧게 둔다 |
+| MIDAS_ANALYSIS_TIMEOUT | 300 | run_analysis 대기 시간(초) |
+| MIDAS_SAVE_TIMEOUT | 120 | save_copy 대기 시간(초) |
+| MIDAS_MAX_ROWS | 200 | 한 번에 돌려주는 최대 행 수 |
+| MIDAS_OUTPUT_DIR | C:/temp | 캡처와 사본을 저장할 폴더. 이미 있어야 한다 |
+
+## 도구
+
+모든 도구는 `product`("gen" 또는 "civil")를 받는다. 사용자가 제품을 말하지 않았으면 먼저 묻는다.
+
+읽기 도구 (모델이 바뀌지 않음):
+
+- check_connection(product): 연결 여부, 프로그램 이름
+- list_tables(product?, search?): `/db`, `/DESIGN` 테이블 목록
+- describe_table(product, table): NX가 알려 주는 `/db` 테이블 필드 구조
+- read_table(product, table, ids?, limit?): 테이블 기록. 최대 MIDAS_MAX_ROWS행
+- model_summary(product): 주요 테이블 개수와 단위계
+- read_model_info(product, what): 프로젝트 상태, 단면 특성, 층 검토 파라미터(Gen만), 현재 선택
+- list_result_tables(search?): result_table이 받는 결과 테이블 종류
+- result_table(product, table_type, load_cases?, components?, keys?, limit?): 해석 결과 테이블
+- capture_view(product, width?, height?): NX 창 PNG
+
+변경 도구 (두 단계):
+
+- run_analysis(product): 해석 실행. NX가 먼저 현재 파일에 덮어 저장한다. 한 번도 저장하지 않은 문서는 거부된다.
+- save_copy(product): MIDAS_OUTPUT_DIR에 자동 이름으로 다른 이름 저장. 이후 NX는 사본에서 작업한다.
+- write_records(product, table, records, mode): `/db` 또는 `/DESIGN` 기록 생성(create)이나 수정(update). 한 번에 50개까지
+- delete_records(product, table, ids): id로 기록 삭제. 한 번에 50개까지. 요소가 쓰는 절점은 삭제가 거부된다.
+
+## 에이전트가 지킬 규칙
+
+1. 변경 도구는 먼저 confirm_token 없이 호출해 미리보기를 받는다. 미리보기를 사용자에게 보여 주고, 사용자가 명시적으로 동의한 뒤에만 같은 인자와 그 confirm_token으로 다시 호출한다. 그 사이에 모델이 바뀌면 거부된다.
+2. 변경이 일어나면 NX의 해석 결과가 지워진다. 결과를 다시 읽기 전에 해석을 다시 돌린다.
+3. 원본 파일을 지켜야 하면 run_analysis 전에 save_copy를 쓴다.
+4. 타임아웃이 나거나 `waiting_for_nx_dialog`가 오면 재시도하지 않는다. 사용자에게 NX 창의 대화상자에 직접 답하라고 안내한다.
+5. 도구가 돌려준 NX의 메시지("no analysis result", "The project is not opened" 등)를 그대로 전달한다. 오류가 나지 않았다고 해서 성공이라고 보고하지 않는다.
+6. 제공하지 않는 기능: 새 문서, 문서 열기, 가져오기, 테이블 전체 삭제, 설계 검토 실행, MIDAS_OUTPUT_DIR 밖으로 저장하기. 다른 방법으로 우회하지 않는다.
+
+## 링크
+
+- [사람용 소개 페이지](https://dennis5882.github.io/midas-nx-mcp/)
+- [한국어 사용 설명서](https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md): 모든 기능의 자세한 설명
+- [README (English)](https://github.com/Dennis5882/midas-nx-mcp#readme)
+- [최신 릴리스와 .mcpb](https://github.com/Dennis5882/midas-nx-mcp/releases/latest)
+- [PyPI](https://pypi.org/project/midas-nx-mcp/)
+- [기반 SDK midas-nx](https://github.com/Dennis5882/MIDAS-API-NX-SDK)
+- [이슈](https://github.com/Dennis5882/midas-nx-mcp/issues)
