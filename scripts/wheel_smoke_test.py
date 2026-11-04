@@ -19,8 +19,8 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 EXPECTED_TOOLS = {
     "check_connection", "list_tables", "describe_table", "read_table", "model_summary",
-    "read_model_info", "list_result_tables", "result_table", "capture_view",
-    "run_analysis", "save_copy", "write_records", "delete_records",
+    "read_model_info", "list_result_tables", "result_table", "capture_view", "show_result",
+    "run_analysis", "save_copy", "write_records", "delete_records", "generate_load_combinations",
 }
 
 
