@@ -130,8 +130,8 @@ and reads the table back afterwards:
 | --- | --- |
 | `run_analysis(product)` | runs the analysis. NX saves the open file first; a never-saved document is refused. A dialog NX opens meanwhile is reported at once |
 | `save_copy(product)` | Save As to a generated name in `MIDAS_OUTPUT_DIR`; NX then works on the copy and the original stays as last saved. Gives a new document a file |
-| `write_records(product, table, records, mode)` | creates or updates up to 50 `/db` or `/DESIGN` records |
-| `delete_records(product, table, ids)` | deletes up to 50 records by id; nodes still used by elements are refused; a `/DESIGN` record NX resets instead of removing is reported as such |
+| `write_records(product, table, records, mode)` | creates or updates up to 50 `/db` or `/DESIGN` records; elements naming a material, section or thickness that does not exist are refused |
+| `delete_records(product, table, ids)` | deletes up to 50 records by id; nodes, materials, sections and thicknesses still used by elements are refused; deleting a load case warns that NX deletes its loads; a `/DESIGN` record NX resets instead of removing is reported as such |
 | `generate_load_combinations(product, kind)` | Gen only: NX adds its KDS concrete, steel or SRC combinations from the load cases; the existing ones stay |
 
 Any write discards the analysis results in NX (even one that stores the same

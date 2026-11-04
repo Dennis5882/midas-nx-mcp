@@ -303,8 +303,8 @@ env = { MIDAS_MAPI_KEY_GEN = "your Gen NX key", MIDAS_MAPI_KEY_CIVIL = "your Civ
           <tr><td><code>show_result</code></td><td><span class="kind read">view</span></td><td>Has NX draw a result (reactions, displacement, deformed shape, beam, plate) and returns the PNG; the model is untouched</td></tr>
           <tr><td><code>run_analysis</code></td><td><span class="kind write">change</span></td><td>Runs the analysis (NX saves the open file first)</td></tr>
           <tr><td><code>save_copy</code></td><td><span class="kind write">change</span></td><td>Saves a copy to <code>C:\temp</code> under a generated name</td></tr>
-          <tr><td><code>write_records</code></td><td><span class="kind write">change</span></td><td>Creates or updates up to 50 records</td></tr>
-          <tr><td><code>delete_records</code></td><td><span class="kind write">change</span></td><td>Deletes up to 50 records by id</td></tr>
+          <tr><td><code>write_records</code></td><td><span class="kind write">change</span></td><td>Creates or updates up to 50 records; elements naming a missing material or section are refused</td></tr>
+          <tr><td><code>delete_records</code></td><td><span class="kind write">change</span></td><td>Deletes up to 50 records by id; nodes, materials and sections in use are refused</td></tr>
           <tr><td><code>generate_load_combinations</code></td><td><span class="kind write">change</span></td><td>(Gen) Adds the KDS concrete, steel or SRC combinations; existing ones stay</td></tr>
         </table>
       </div>

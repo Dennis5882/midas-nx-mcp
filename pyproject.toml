@@ -28,7 +28,7 @@ classifiers = [
 ]
 dependencies = [
     "mcp[cli]>=2.3,<3",
-    "midas-nx>=2.10.7",
+    "midas-nx>=2.10.8",
 ]
 
 [project.optional-dependencies]

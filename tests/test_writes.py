@@ -230,6 +230,70 @@ def test_a_delete_that_takes_other_records_along_is_reported(model):
     assert result["also_changed"] == {"NODE": {"before": 3, "after": 0}}
 
 
+@pytest.fixture
+def properties(model):
+    session, _, elems = model
+    elems.records = {
+        "1": {"TYPE": "BEAM", "MATL": 1, "SECT": 7, "NODE": [1, 2, 0, 0, 0, 0, 0, 0]},
+        "2": {"TYPE": "PLATE", "MATL": 2, "SECT": 7, "NODE": [1, 2, 3, 0, 0, 0, 0, 0]},
+    }
+    session.routes["/db/MATL"] = FakeTable("MATL", {1: {"NAME": "C30"}, 2: {"NAME": "C24"}})
+    session.routes["/db/SECT"] = FakeTable("SECT", {7: {"SECT_NAME": "B1"}, 8: {"SECT_NAME": "B2"}})
+    session.routes["/db/THIK"] = FakeTable("THIK", {7: {"T_IN": 0.2}})
+    return session, elems
+
+
+def test_an_element_naming_a_missing_material_or_section_is_refused(properties):
+    session, _ = properties
+    beam = {"TYPE": "BEAM", "MATL": 99, "SECT": 98, "NODE": [2, 3, 0, 0, 0, 0, 0, 0]}
+    with pytest.raises(ToolError, match="do not exist") as info:
+        server.write_records("gen", "ELEM", {"3": beam}, "create")
+    assert "{'3': {'MATL': 99, 'SECT': 98}}" in str(info.value)
+    # A plate's SECT is a thickness: THIK 8 does not exist, although SECT 8 does.
+    plate = {"TYPE": "PLATE", "MATL": 1, "SECT": 8, "NODE": [1, 2, 3, 0, 0, 0, 0, 0]}
+    with pytest.raises(ToolError, match="'THIK': 8"):
+        server.write_records("gen", "ELEM", {"3": plate}, "create")
+    # An update is checked against the record it merges into.
+    with pytest.raises(ToolError, match="'SECT': 99"):
+        server.write_records("gen", "ELEM", {"1": {"SECT": 99}}, "update")
+    assert _writes(session) == []
+    ok = {"TYPE": "BEAM", "MATL": 2, "SECT": 8, "NODE": [2, 3, 0, 0, 0, 0, 0, 0]}
+    assert server.write_records("gen", "ELEM", {"3": ok}, "create")["preview"]
+
+
+@pytest.mark.parametrize(("table", "used_by"), [("MATL", "1"), ("SECT", "1"), ("THIK", "2")])
+def test_a_material_section_or_thickness_in_use_is_not_deleted(properties, table, used_by):
+    session, _ = properties
+    target = 1 if table == "MATL" else 7
+    with pytest.raises(ToolError, match="in use by elements") as info:
+        server.delete_records("gen", table, [target])
+    assert f"'first': ['{used_by}']" in str(info.value)
+    assert _writes(session) == []
+
+
+def test_an_unused_section_can_be_deleted(properties):
+    token = server.delete_records("gen", "SECT", [8])["confirm_token"]
+    assert server.delete_records("gen", "SECT", [8], confirm_token=token)["removed"] == ["8"]
+
+
+def test_deleting_a_load_case_warns_and_counts_the_loads_it_takes(model):
+    session, _, _ = model
+    cases = FakeTable("STLD", CASES)
+    loads = FakeTable("BMLD", {1: {"ITEMS": [{"LCNAME": "DL"}]}})
+
+    def nx_takes_the_loads(method, url, body):
+        if method == "DELETE":
+            loads.records.clear()
+        return cases(method, url, body)
+
+    session.routes["/db/STLD"] = nx_takes_the_loads
+    session.routes["/db/BMLD"] = loads
+    preview = server.delete_records("gen", "STLD", [1])
+    assert preview["warning"].startswith("NX deletes the loads")
+    result = server.delete_records("gen", "STLD", [1], confirm_token=preview["confirm_token"])
+    assert result["also_changed"] == {"BMLD": {"before": 1, "after": 0}}
+
+
 def test_deleting_nothing_that_exists_is_refused(model):
     with pytest.raises(ToolError, match="nothing to delete"):
         server.delete_records("gen", "NODE", [77])

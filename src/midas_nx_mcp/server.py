@@ -24,7 +24,7 @@ import requests
 from mcp.server.mcpserver import Image, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
-from midas_nx import MidasAPIError, MidasClient, MidasConnectionError, doc, ope, view
+from midas_nx import MidasAPIError, MidasClient, MidasConnectionError, doc, ope, plan, view
 from midas_nx.post.base import get_table, unwrap_table
 from midas_nx.view import capture
 
@@ -779,6 +779,100 @@ def _record_ids(ids: Any) -> list[str]:
     return keys
 
 
+# The property table an element's SECT names, by element TYPE (midas-nx
+# contracts, measured on Gen and Civil 2026-11-04): a /db/SECT section for line
+# elements, a /db/THIK thickness for plates and walls. NX checks neither, nor
+# MATL: an element naming a record that does not exist is stored as an orphan,
+# and deleting a record in use leaves its elements pointing at nothing. Other
+# element types (solids, ...) are not checked here.
+SECTION_TABLES = {"BEAM": "SECT", "TRUSS": "SECT", "TENSTR": "SECT", "COMPTR": "SECT",
+                  "PLATE": "THIK", "WALL": "THIK"}
+PROPERTY_TABLES = ("MATL", "SECT", "THIK")
+# What NX deletes along with a record, measured (midas-nx contracts, 2026-11-04).
+# Nodes in use are refused outright, so only load cases are listed.
+CASCADE_NOTES = {
+    "STLD": "NX deletes the loads in these load cases along with them (beam, nodal, "
+            "pressure loads, ...); also_changed shows the counts after applying.",
+}
+
+
+def _as_id(value: Any) -> int | None:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _property_refs(element: dict[str, Any]) -> dict[str, int]:
+    """{table: id} of the material and section/thickness one element names."""
+    refs: dict[str, int] = {}
+    if (matl := _as_id(element.get("MATL"))) is not None:
+        refs["MATL"] = matl
+    table = SECTION_TABLES.get(str(element.get("TYPE", "")).upper())
+    if table and (sect := _as_id(element.get("SECT"))) is not None:
+        refs[table] = sect
+    return refs
+
+
+def _check_element_properties(
+    client: MidasClient, records: dict[str, Any], before: dict[str, Any]
+) -> None:
+    """Refuse elements naming a MATL, SECT or THIK that does not exist."""
+    named = {k: _property_refs({**before.get(k, {}), **v}) for k, v in records.items()}
+    tables = catalog.db_tables()
+    missing: dict[str, dict[str, int]] = {}
+    for table in PROPERTY_TABLES:
+        wanted = {k: refs[table] for k, refs in named.items() if table in refs}
+        if not wanted:
+            continue
+        existing = {_as_id(i) for i in _records(tables[table].get(client=client))[0]}
+        for element, ref in wanted.items():
+            if ref not in existing:
+                missing.setdefault(element, {})[table] = ref
+    if missing:
+        raise ToolError(
+            f"Elements name property records that do not exist (element: table id) {missing}. "
+            "NX would store them anyway, pointing at nothing. Create those MATL/SECT/THIK "
+            "records first, or use ids that exist."
+        )
+
+
+def _users_of(client: MidasClient, table: str, ids: list[str]) -> dict[str, dict[str, Any]]:
+    """Of the MATL/SECT/THIK ids, those some element names: {id: count and first few}."""
+    wanted = {int(k) for k in ids}
+    elements, _ = _records(catalog.db_tables()["ELEM"].get(client=client))
+    users: dict[int, list[str]] = {}
+    for element, rec in elements.items():
+        ref = _property_refs(rec).get(table)
+        if ref in wanted:
+            users.setdefault(ref, []).append(element)
+    return {str(i): {"elements": len(e), "first": sorted(e, key=_by_id)[:5]}
+            for i, e in sorted(users.items())}
+
+
+def _watched_tables(name: str) -> list[str]:
+    """NODE, ELEM and every table whose records name `name` (midas_nx.plan)."""
+    endpoint = f"/db/{name}"
+    dependents = [t.removeprefix("/db/") for t, deps in plan.DEPENDENCIES.items()
+                  if endpoint in deps]
+    tables = catalog.db_tables()
+    return [t for t in dict.fromkeys(["NODE", "ELEM", *sorted(dependents)])
+            if t != name and t in tables]
+
+
+def _counts(client: MidasClient, names: list[str]) -> dict[str, int]:
+    """Record counts; a table this product or model does not answer is left out."""
+    tables = catalog.db_tables()
+    counts: dict[str, int] = {}
+    for name in names:
+        try:
+            counts[name] = len(_records(tables[name].get(client=client))[0])
+        except MidasAPIError as exc:
+            log.debug("not counting %s: %s", name, exc)
+    return counts
+
+
 @mcp.tool(annotations=CHANGES_MODEL)
 @_guarded
 def run_analysis(product: Product, confirm_token: str | None = None) -> dict:
@@ -985,7 +1079,9 @@ def write_records(
     create and are made by their first update. At most 50 records. After applying, the
     table is read back and what actually changed is returned; some tables store
     a new record under an id of their own choosing, so trust "added", not the
-    ids you sent. Any write discards the analysis results.
+    ids you sent. Elements naming a material, section or thickness that does
+    not exist are refused (NX would store them pointing at nothing). Any write
+    discards the analysis results.
     """
     method = "POST" if mode == "create" else "PUT"
     cls = _writable(table, method)
@@ -1005,6 +1101,8 @@ def write_records(
                 "this table has no create, and an update here does not make new records"
             )
             raise ToolError(f"{name} has no ids {missing}; {hint}.")
+    if name == "ELEM":
+        _check_element_properties(client, payload, before)
     current = {i: before[i] for i in ids if i in before}
     token = _token("write", product, name, mode, payload, current, len(before))
     if confirm_token is None:
@@ -1032,9 +1130,12 @@ def delete_records(
 
     Only the listed ids, one DELETE per id; there is no way to empty a table
     here. Nodes still used by an element are refused (NX would delete the
-    elements with them). At most 50 ids. The table is read back afterwards: on
-    some /DESIGN tables NX resets the record to defaults rather than removing
-    it, or keeps it unchanged, and the result says which.
+    elements with them), and so are materials, sections and thicknesses still
+    used by an element (NX would leave the elements pointing at nothing).
+    Deleting a load case deletes its loads too; the preview says so. At most 50
+    ids. The table is read back afterwards: on some /DESIGN tables NX resets
+    the record to defaults rather than removing it, or keeps it unchanged, and
+    the result says which; records NX removed from other tables are counted.
     """
     cls = _writable(table, "DELETE")
     name = catalog.table_name(cls.ENDPOINT)
@@ -1055,13 +1156,21 @@ def delete_records(
                 f"Nodes in use by elements (element: nodes) {users}; NX would delete those "
                 "elements too. Delete the elements first if that is intended."
             )
-    # Deleting one record can take others with it; count the main tables around it.
-    watched = [t for t in ("NODE", "ELEM") if t != name]
-    counts = {t: len(_records(tables[t].get(client=client))[0]) for t in watched}
+    if name in PROPERTY_TABLES and (users := _users_of(client, name, present)):
+        raise ToolError(
+            f"{name} ids in use by elements {users}; NX would delete them and leave those "
+            "elements pointing at nothing. Give the elements another one first "
+            "(write_records on ELEM), or delete the elements."
+        )
+    # Deleting one record can take others with it; count the tables around it.
+    counts = _counts(client, _watched_tables(name))
     token = _token("delete", product, name, present, {k: before[k] for k in present}, counts)
     if confirm_token is None:
-        return _preview(cls, table=name, will_delete={k: before[k] for k in present},
-                        not_found=[k for k in keys if k not in before], confirm_token=token)
+        preview = _preview(cls, table=name, will_delete={k: before[k] for k in present},
+                           not_found=[k for k in keys if k not in before], confirm_token=token)
+        if name in CASCADE_NOTES:
+            preview["warning"] = f"{CASCADE_NOTES[name]} {preview['warning']}"
+        return preview
     _check_token(confirm_token, token)
     responses = cls.delete([int(k) for k in present], client=client)
     after, _ = _records(cls.get(client=client))
@@ -1079,8 +1188,9 @@ def delete_records(
         if extra:
             notes.append(f"ids {extra} are gone too, although they were not asked for")
         result["warning"] = f"Asked to delete {present}: " + "; ".join(notes) + "."
-    side = {t: (n, len(_records(tables[t].get(client=client))[0])) for t, n in counts.items()}
-    side = {t: {"before": b, "after": a} for t, (b, a) in side.items() if b != a}
+    now = _counts(client, list(counts))
+    side = {t: {"before": b, "after": now[t]} for t, b in counts.items()
+            if t in now and now[t] != b}
     if side:
         result["also_changed"] = side
     return result

@@ -302,8 +302,8 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
           <tr><td><code>show_result</code></td><td><span class="kind read">화면</span></td><td>결과 그림(반력·변위·변형·보·판)을 그려서 PNG로. 모델은 그대로</td></tr>
           <tr><td><code>run_analysis</code></td><td><span class="kind write">변경</span></td><td>해석 실행 (NX가 먼저 현재 파일에 저장)</td></tr>
           <tr><td><code>save_copy</code></td><td><span class="kind write">변경</span></td><td><code>C:\temp</code>에 자동 이름으로 사본 저장</td></tr>
-          <tr><td><code>write_records</code></td><td><span class="kind write">변경</span></td><td>기록 생성·수정, 한 번에 50개까지</td></tr>
-          <tr><td><code>delete_records</code></td><td><span class="kind write">변경</span></td><td>id로 기록 삭제, 한 번에 50개까지</td></tr>
+          <tr><td><code>write_records</code></td><td><span class="kind write">변경</span></td><td>기록 생성·수정, 한 번에 50개까지. 없는 재질·단면을 쓰는 요소는 거부</td></tr>
+          <tr><td><code>delete_records</code></td><td><span class="kind write">변경</span></td><td>id로 기록 삭제, 한 번에 50개까지. 요소가 쓰는 절점·재질·단면은 거부</td></tr>
           <tr><td><code>generate_load_combinations</code></td><td><span class="kind write">변경</span></td><td>(Gen) KDS 콘크리트·강재·SRC 하중조합 추가. 기존 조합은 그대로</td></tr>
         </table>
       </div>
