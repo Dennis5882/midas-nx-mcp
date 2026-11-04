@@ -8,22 +8,12 @@ tools accept without any change here.
 from __future__ import annotations
 
 import importlib
-import pkgutil
 from functools import cache
 
-import midas_nx.db
-import midas_nx.design
+from midas_nx.db import all_resources
 from midas_nx.db.base import DbResource
 
 _POST_MODULES = ("pre_process", "result_1", "story", "design")
-
-
-def _subclasses(cls: type) -> list[type]:
-    found = []
-    for sub in cls.__subclasses__():
-        found.append(sub)
-        found.extend(_subclasses(sub))
-    return found
 
 
 def table_name(endpoint: str) -> str:
@@ -38,17 +28,13 @@ def table_name(endpoint: str) -> str:
 @cache
 def db_tables() -> dict[str, type[DbResource]]:
     """``{"NODE": Node, "DESIGN/STEEL/DSTL": ..., ...}`` for every table that answers GET."""
-    # Subpackages too (db.properties holds MATL/SECT/THIK), and design/, which
-    # defines the /DESIGN design-parameter tables.
-    for package in (midas_nx.db, midas_nx.design):
-        for module in pkgutil.walk_packages(package.__path__, f"{package.__name__}."):
-            importlib.import_module(module.name)
-    tables = {}
-    for cls in _subclasses(DbResource):
-        endpoint = getattr(cls, "ENDPOINT", "")
-        if endpoint.startswith(("/db/", "/DESIGN/")) and "GET" in cls.METHODS:
-            tables[table_name(endpoint)] = cls
-    return dict(sorted(tables.items()))
+    # The SDK's own list (2.10.7+), held equal to the npm package's: walking
+    # the modules here once missed db.properties (MATL/SECT/THIK).
+    return {
+        table_name(endpoint): cls
+        for endpoint, cls in all_resources().items()
+        if "GET" in cls.METHODS
+    }
 
 
 @cache
