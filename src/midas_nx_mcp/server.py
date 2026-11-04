@@ -602,6 +602,7 @@ def show_result(
         "COMPONENTS": {"COMP": comp},
         "TYPE_OF_DISPLAY": display,
     }
+    _require_results(product, case_name, case_type)
     try:
         view.set_result_graphic(argument, client=_client(product))
     except MidasAPIError as exc:
@@ -613,6 +614,28 @@ def show_result(
             ) from exc
         raise
     return _capture(product, size)
+
+
+def _require_results(product: Product, case_name: str, case_type: str) -> None:
+    """Refuse when the model has no analysis results to draw.
+
+    Live (Gen, 2026-11-04): with the results gone (the model was changed after
+    the analysis), /view/RESULTGRAPHIC still answers "command complete" and the
+    capture is the bare model, which reads like a result picture. A reaction
+    table for the same case is the cheapest way to ask; only NX's "no analysis
+    result" stops here, anything else is left to /view/RESULTGRAPHIC to report.
+    """
+    try:
+        get_table(
+            "REACTIONG", load_case_names=[f"{case_name}({case_type})"], client=_client(product)
+        )
+    except MidasAPIError as exc:
+        if NO_RESULT_TEXT in str(exc):
+            raise ToolError(
+                f"{exc} Nothing to draw: run the analysis first (run_analysis, or in NX). "
+                "Changing the model after an analysis clears its results."
+            ) from exc
+        log.debug("result check before show_result: %s", exc)
 
 
 def _component(result: str, component: str | None, known: tuple[str, ...]) -> str:

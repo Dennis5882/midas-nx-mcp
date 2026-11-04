@@ -11,7 +11,7 @@ Claude Desktop이나 Codex 같은 AI 앱에서 **지금 열려 있는 MIDAS Gen 
 ## 1. 동작 방식
 
 ```
-AI 앱 (Claude Desktop / Codex / Claude Code)
+AI 앱 (Claude Desktop / Codex / Claude Code / Gemini CLI)
    │  같은 PC 안에서 stdio로 통신
    ▼
 midas-nx-mcp (이 서버, uvx가 실행)
@@ -109,6 +109,17 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
 ```bash
 claude mcp add midas-nx -e MIDAS_MAPI_KEY_GEN=Gen키 -e MIDAS_MAPI_KEY_CIVIL=Civil키 -- uvx midas-nx-mcp
 ```
+
+### 3-4. Gemini CLI
+
+1. `%USERPROFILE%\.gemini\settings.json`의 `mcpServers`에 Claude Desktop과 같은 항목을 넣습니다.
+2. Gemini를 쓸 폴더에서 `gemini`를 실행하고, 폴더를 **신뢰**한다고 답합니다. 신뢰하지 않은 폴더에서는 서버가 Disabled로 꺼져 있습니다.
+3. `/mcp`로 `midas-nx`가 연결됐는지 확인합니다. 도구는 `mcp_midas-nx_<도구>` 이름으로 보입니다.
+
+로그인 방식:
+
+- Google AI Pro·Ultra 구독이나 회사의 Gemini Code Assist Standard·Enterprise 계정: **Login with Google**
+- 무료 개인 계정: 구글 로그인이 `IneligibleTierError`로 거부됩니다. Google AI Studio에서 API 키를 받아 `GEMINI_API_KEY` 환경 변수로 넣고, 인증 방식을 **Gemini API Key**로 고릅니다(`/auth`로 바꿀 수 있습니다).
 
 ---
 

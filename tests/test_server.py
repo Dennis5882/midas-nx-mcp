@@ -257,12 +257,18 @@ def _graphic(nx) -> dict:
     return next(body["Argument"] for _, url, body in nx.sent if url.endswith("/view/RESULTGRAPHIC"))
 
 
+REACTIONS = {"Result Table": {"FORCE": "KN", "HEAD": ["Node", "FZ"], "DATA": [[1, 10.0]]}}
+
+
 def test_show_result_sets_the_graphic_then_captures(nx):
+    nx.routes["/post/TABLE"] = REACTIONS
     nx.routes["/view/RESULTGRAPHIC"] = {"message": "MIDAS GEN NX command complete"}
     nx.routes["/view/CAPTURE"] = _nx_writes_the_file
     image = server.show_result("gen", "beam_diagram", "DL", component="my", width=800)
     assert image.data == PNG
-    assert [url.rsplit("/", 1)[1] for _, url, _ in nx.sent] == ["RESULTGRAPHIC", "CAPTURE"]
+    assert [url.rsplit("/", 1)[1] for _, url, _ in nx.sent] == ["TABLE", "RESULTGRAPHIC", "CAPTURE"]
+    # The result check asks for the same case, in result_table's spelling.
+    assert nx.sent[0][2]["Argument"]["LOAD_CASE_NAMES"] == ["DL(ST)"]
     argument = _graphic(nx)
     assert argument["CURRENT_MODE"] == "beamdiagrams"
     assert argument["LOAD_CASE_COMB"] == {"TYPE": "ST", "NAME": "DL"}
@@ -301,6 +307,22 @@ def test_show_result_passes_a_missing_load_case_on(nx):
     nx.routes["/view/RESULTGRAPHIC"] = {"error": {"message": "MIDAS GEN NX Can not find load case."}}
     with pytest.raises(ToolError, match="Can not find load case"):
         server.show_result("gen", "displacement", "NOPE")
+
+
+def test_show_result_refuses_when_there_are_no_results(nx):
+    # Live: NX would draw the bare model and still say "command complete".
+    nx.routes["/post/TABLE"] = NO_RESULT
+    nx.routes["/view/RESULTGRAPHIC"] = {"message": "MIDAS GEN NX command complete"}
+    with pytest.raises(ToolError, match="no analysis result.*run the analysis first"):
+        server.show_result("gen", "reactions", "DL")
+    assert not any(url.endswith(("/view/RESULTGRAPHIC", "/view/CAPTURE")) for _, url, _ in nx.sent)
+
+
+def test_show_result_leaves_other_check_failures_to_nx(nx):
+    nx.routes["/post/TABLE"] = {"error": {"message": "MIDAS GEN NX Can not find load case."}}
+    nx.routes["/view/RESULTGRAPHIC"] = {"message": "ok"}
+    nx.routes["/view/CAPTURE"] = _nx_writes_the_file
+    assert server.show_result("gen", "reactions", "DL").data == PNG
 
 
 def test_show_result_refuses_bad_arguments_before_asking_nx(nx):

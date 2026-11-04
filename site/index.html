@@ -129,7 +129,7 @@
           <tr><th>OS</th><td>Windows</td></tr>
           <tr><th>NX</th><td>Gen NX 또는 Civil NX가 <strong>같은 PC</strong>에서 실행 중이고, Open API가 연결된 상태 (<code>Apps &gt; API Settings</code>)</td></tr>
           <tr><th>MAPI 키</th><td>제품마다 다릅니다. 각 프로그램의 <code>Apps &gt; API Settings</code>에서 확인합니다. <strong>본인 PC의 키</strong>를 쓰세요.</td></tr>
-          <tr><th>AI 앱</th><td>Claude Desktop 최신 버전 (권장). Claude Code, Codex 등 다른 MCP 앱도 됩니다.</td></tr>
+          <tr><th>AI 앱</th><td>Claude Desktop 최신 버전 (권장). Claude Code, Codex, Gemini CLI 등 다른 MCP 앱도 됩니다.</td></tr>
         </table>
       </div>
       <div class="note">
@@ -173,6 +173,7 @@
           <button role="tab" aria-selected="true" data-tab="t-json">Claude Desktop (설정 파일)</button>
           <button role="tab" aria-selected="false" data-tab="t-code">Claude Code</button>
           <button role="tab" aria-selected="false" data-tab="t-codex">Codex</button>
+          <button role="tab" aria-selected="false" data-tab="t-gemini">Gemini CLI</button>
         </div>
         <div class="panel" id="t-json">
           <p class="sub"><code>설정 &gt; 개발자 &gt; 구성 편집</code>으로 <code>claude_desktop_config.json</code>을 열고 <code>mcpServers</code>에 추가한 뒤, Claude Desktop을 트레이까지 완전히 종료했다가 다시 켭니다.</p>
@@ -198,6 +199,22 @@
 command = "uvx"
 args = ["midas-nx-mcp@latest"]
 env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키" }</code></pre></div>
+        </div>
+        <div class="panel" id="t-gemini" hidden>
+          <p class="sub"><code>%USERPROFILE%\.gemini\settings.json</code>에 추가합니다. 그다음 Gemini를 쓸 폴더에서 <code>gemini</code>를 실행하고 폴더를 <strong>신뢰</strong>합니다. 신뢰하지 않은 폴더에서는 서버가 Disabled로 꺼져 있습니다. <code>/mcp</code>로 연결을 확인합니다.</p>
+          <div class="code"><pre><code>{
+  "mcpServers": {
+    "midas-nx": {
+      "command": "uvx",
+      "args": ["midas-nx-mcp@latest"],
+      "env": {
+        "MIDAS_MAPI_KEY_GEN": "Gen NX 키",
+        "MIDAS_MAPI_KEY_CIVIL": "Civil NX 키"
+      }
+    }
+  }
+}</code></pre></div>
+          <p class="sub">Gemini 로그인: Google AI Pro·Ultra 구독이나 회사의 Gemini Code Assist Standard·Enterprise 계정은 <strong>Login with Google</strong>로 씁니다. 무료 개인 계정은 구글 로그인이 <code>IneligibleTierError</code>로 거부되므로 Google AI Studio에서 API 키를 받아 <code>GEMINI_API_KEY</code> 환경 변수로 넣고, 인증 방식을 <code>Gemini API Key</code>로 고릅니다.</p>
         </div>
       </div>
     </div>

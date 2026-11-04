@@ -76,6 +76,18 @@ Developer should show `midas-nx` as running.
 claude mcp add midas-nx -e MIDAS_MAPI_KEY_GEN=your-gen-key -- uvx midas-nx-mcp
 ```
 
+### Gemini CLI
+
+Add the same `mcpServers` entry as for Claude Desktop to
+`%USERPROFILE%\.gemini\settings.json`. Then run `gemini` in the folder you
+work in and trust it: in an untrusted folder the server stays Disabled.
+`/mcp` shows it connected; the tools appear as `mcp_midas-nx_<tool>`.
+
+Signing in: a Google AI Pro or Ultra subscription, or a company Gemini Code
+Assist Standard or Enterprise account, uses Login with Google. A free personal
+account is refused there (`IneligibleTierError`); use an API key from Google
+AI Studio as `GEMINI_API_KEY` and choose "Gemini API Key" as the sign-in method.
+
 ### Other clients (Codex, ...)
 
 Add a STDIO server with command `uvx`, argument `midas-nx-mcp`, and the

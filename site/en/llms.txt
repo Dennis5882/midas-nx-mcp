@@ -1,6 +1,6 @@
 # midas-nx-mcp
 
-> A local MCP server. It lets AI apps such as Claude Desktop, Claude Code and Codex read the model open in MIDAS Gen NX / Civil NX, running on the same Windows PC, through the MIDAS NX Open API, and apply only the changes the user confirms. A personal project (alpha) built by a MIDAS IT team member; not an official MIDAS IT product. MIT license.
+> A local MCP server. It lets AI apps such as Claude Desktop, Claude Code, Codex and Gemini CLI read the model open in MIDAS Gen NX / Civil NX, running on the same Windows PC, through the MIDAS NX Open API, and apply only the changes the user confirms. A personal project (alpha) built by a MIDAS IT team member; not an official MIDAS IT product. MIT license.
 
 This file is a summary for AI agents helping a user install and use the server. Page for people: https://dennis5882.github.io/midas-nx-mcp/en/ (Korean: https://dennis5882.github.io/midas-nx-mcp/llms.txt)
 
@@ -51,6 +51,8 @@ command = "uvx"
 args = ["midas-nx-mcp@latest"]
 env = { MIDAS_MAPI_KEY_GEN = "<Gen NX key>", MIDAS_MAPI_KEY_CIVIL = "<Civil NX key>" }
 ```
+
+Gemini CLI: the same entry as Claude Desktop, under `mcpServers` in `%USERPROFILE%\.gemini\settings.json`. Then run `gemini` in the working folder and trust it (in an untrusted folder the server is Disabled). Tools appear as `mcp_midas-nx_<tool>`. Sign-in: a Google AI Pro or Ultra subscription, or a Code Assist Standard or Enterprise account, uses Login with Google; a free personal account is refused with `IneligibleTierError`, so use `GEMINI_API_KEY` (Google AI Studio).
 
 ## Settings (environment variables)
 

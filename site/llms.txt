@@ -1,6 +1,6 @@
 # midas-nx-mcp
 
-> 로컬 MCP 서버. Claude Desktop, Claude Code, Codex 같은 AI 앱이 같은 Windows PC에서 실행 중인 MIDAS Gen NX / Civil NX의 열린 모델을 MIDAS NX Open API로 읽고, 사용자가 확인한 변경만 적용하게 한다. MIDAS IT 내부 구성원이 만든 개인 프로젝트(알파)이며, MIDAS IT 공식 제품은 아니다. MIT 라이선스.
+> 로컬 MCP 서버. Claude Desktop, Claude Code, Codex, Gemini CLI 같은 AI 앱이 같은 Windows PC에서 실행 중인 MIDAS Gen NX / Civil NX의 열린 모델을 MIDAS NX Open API로 읽고, 사용자가 확인한 변경만 적용하게 한다. MIDAS IT 내부 구성원이 만든 개인 프로젝트(알파)이며, MIDAS IT 공식 제품은 아니다. MIT 라이선스.
 
 이 파일은 AI 에이전트가 사용자의 설치와 사용을 돕도록 쓴 요약이다. 사람용 페이지: https://dennis5882.github.io/midas-nx-mcp/ (English: https://dennis5882.github.io/midas-nx-mcp/en/llms.txt)
 
@@ -51,6 +51,8 @@ command = "uvx"
 args = ["midas-nx-mcp@latest"]
 env = { MIDAS_MAPI_KEY_GEN = "<Gen NX key>", MIDAS_MAPI_KEY_CIVIL = "<Civil NX key>" }
 ```
+
+Gemini CLI (`%USERPROFILE%\.gemini\settings.json`의 `mcpServers`에 Claude Desktop과 같은 항목). 이어서 작업 폴더에서 `gemini`를 실행해 폴더를 신뢰해야 한다(신뢰하지 않은 폴더에서는 Disabled). 도구 이름은 `mcp_midas-nx_<tool>`로 보인다. 로그인: Google AI Pro·Ultra 구독이나 Code Assist Standard·Enterprise 계정은 Login with Google, 무료 개인 계정은 `IneligibleTierError`로 거부되므로 `GEMINI_API_KEY`(Google AI Studio)를 쓴다.
 
 ## 설정 (환경 변수)
 

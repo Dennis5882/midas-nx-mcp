@@ -122,6 +122,23 @@ author's 6-story RC building (3137 nodes, 24 load cases), analysed by
 - The deformed shape comes out with scale factor 0 (nothing to see) unless
   `DEFORM.SCALE_FACTOR` is sent; `deform_scale` sends it.
 - Civil NX: the route answers (SDK notes), the modes were not tried.
+- Later the same day, after `generate_load_combinations` had changed that
+  model, its results were gone ("no analysis result" from `/post/TABLE`),
+  yet `/view/RESULTGRAPHIC` still answered "command complete" and the
+  capture was the bare model: same bytes for reactions and for a beam
+  diagram. `show_result` now asks REACTIONG for the same case first and
+  refuses on "no analysis result"; any other answer to that check is left
+  to `/view/RESULTGRAPHIC` to report. Checked live: it refuses.
+
+Gemini CLI 0.66.0 (2026-11-04), from this checkout's venv: all 15 tools
+listed (named `mcp_midas-nx_<tool>`), `check_connection`, `model_summary`
+and `show_result` called, and the picture described correctly (it noticed
+the missing reactions above). The server is "Disabled" until the folder is
+trusted. Login with Google on a free personal account fails with
+`IneligibleTierError` ("no longer supported for Gemini Code Assist for
+individuals"); an AI Studio `GEMINI_API_KEY` works. Paid accounts (Google AI
+Pro/Ultra, Code Assist Standard/Enterprise) are documented as Login with
+Google but were not tried here.
 
 Story tables: on that model (stories defined, no story calculation) every
 story table answered "no analysis result" before the analysis, as the SDK
