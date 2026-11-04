@@ -96,11 +96,14 @@ def nx(monkeypatch, tmp_path):
         if method == "GET" or session.writes_allowed:
             continue
         # Otherwise nothing changes the model: /post/TABLE without EXPORT_PATH,
-        # and /view/CAPTURE, only into the output folder under a generated name.
+        # /view/CAPTURE, only into the output folder under a generated name, and
+        # /view/RESULTGRAPHIC, which changes what the window shows and nothing else.
         assert method == "POST"
         argument = body["Argument"]
         if url.endswith("/view/CAPTURE"):
             assert argument["EXPORT_PATH"].startswith(tmp_path.as_posix() + "/mcp-capture-")
+        elif url.endswith("/view/RESULTGRAPHIC"):
+            assert "EXPORT_PATH" not in argument
         else:
             assert url.endswith("/post/TABLE")
             assert "EXPORT_PATH" not in argument

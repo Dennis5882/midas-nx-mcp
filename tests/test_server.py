@@ -131,6 +131,50 @@ def test_result_table_refuses_unknown_types(nx):
     assert nx.sent == []
 
 
+NO_RESULT = {"error": {"message": "[empty] Cannot generate table data as there is no analysis result."}}
+
+
+def test_story_tables_without_results_say_what_nx_needs(nx):
+    nx.routes["/post/TABLE"] = NO_RESULT
+    with pytest.raises(ToolError, match="no analysis result.*stories defined"):
+        server.result_table("gen", "STORY_DRIFT_X")
+
+
+def test_other_tables_without_results_keep_the_nx_message_alone(nx):
+    nx.routes["/post/TABLE"] = NO_RESULT
+    with pytest.raises(ToolError, match="no analysis result") as raised:
+        server.result_table("gen", "REACTIONG")
+    assert "stories" not in str(raised.value)
+
+
+def test_result_tables_are_grouped_with_what_each_group_needs():
+    listing = server.list_result_tables()
+    assert set(listing["categories"]) == {"model", "analysis", "story", "design"}
+    by_type = {t["table_type"]: t["category"] for t in listing["tables"]}
+    assert by_type["REACTIONG"] == "analysis"
+    assert by_type["STORY_DRIFT_X"] == "story"
+    assert by_type["STORY_MASS"] == "model"
+    assert by_type["BEAMDESIGNFORCES"] == "design"
+    story = server.list_result_tables(category="story")
+    assert set(story["categories"]) == {"story"}
+    assert all(t["category"] == "story" for t in story["tables"])
+    assert server.list_result_tables(search="drift", category="model")["tables"] == []
+
+
+def test_prompts_name_only_tools_that_exist_and_change_nothing():
+    tools = {t.name for t in asyncio.run(server.mcp.list_tools())}
+    writes = {"run_analysis", "save_copy", "write_records", "delete_records"}
+    prompts = asyncio.run(server.mcp.list_prompts())
+    assert {p.name for p in prompts} == {"check_reactions", "check_story_drift", "review_model"}
+    for prompt in prompts:
+        result = asyncio.run(server.mcp.get_prompt(prompt.name, {}))
+        text = " ".join(m.content.text for m in result.messages)
+        named = {word.split("(")[0] for word in text.replace(",", " ").split() if "(" in word}
+        assert named & tools, prompt.name
+        assert not named & writes, prompt.name
+        assert "change nothing" in text
+
+
 def test_list_tables_filters_by_product_and_text():
     gen_tables = {row["table"] for row in server.list_tables("gen")}
     assert "NODE" in gen_tables
@@ -206,6 +250,66 @@ def test_capture_refuses_a_missing_folder_before_asking_nx(nx, monkeypatch, tmp_
 def test_capture_refuses_oversized_images(nx):
     with pytest.raises(ToolError, match="width"):
         server.capture_view("gen", width=5000)
+    assert nx.sent == []
+
+
+def _graphic(nx) -> dict:
+    return next(body["Argument"] for _, url, body in nx.sent if url.endswith("/view/RESULTGRAPHIC"))
+
+
+def test_show_result_sets_the_graphic_then_captures(nx):
+    nx.routes["/view/RESULTGRAPHIC"] = {"message": "MIDAS GEN NX command complete"}
+    nx.routes["/view/CAPTURE"] = _nx_writes_the_file
+    image = server.show_result("gen", "beam_diagram", "DL", component="my", width=800)
+    assert image.data == PNG
+    assert [url.rsplit("/", 1)[1] for _, url, _ in nx.sent] == ["RESULTGRAPHIC", "CAPTURE"]
+    argument = _graphic(nx)
+    assert argument["CURRENT_MODE"] == "beamdiagrams"
+    assert argument["LOAD_CASE_COMB"] == {"TYPE": "ST", "NAME": "DL"}
+    assert argument["COMPONENTS"] == {"COMP": "My"}  # NX's spelling
+    assert argument["TYPE_OF_DISPLAY"]["CONTOUR"] == {"OPT_CHECK": True}
+    assert nx.sent[-1][2]["Argument"]["WIDTH"] == 800
+
+
+def test_show_result_takes_combinations_with_their_type(nx):
+    nx.routes["/view/RESULTGRAPHIC"] = {"message": "ok"}
+    nx.routes["/view/CAPTURE"] = _nx_writes_the_file
+    server.show_result("gen", "reactions", " cLCB1(cbc) ")
+    argument = _graphic(nx)
+    assert argument["LOAD_CASE_COMB"] == {"TYPE": "CBC", "NAME": "cLCB1"}
+    assert argument["COMPONENTS"] == {"COMP": "FZ"}
+    assert argument["TYPE_OF_DISPLAY"]["VALUES"] == {"OPT_CHECK": True}
+
+
+def test_show_result_scales_the_deformed_shape(nx):
+    nx.routes["/view/RESULTGRAPHIC"] = {"message": "ok"}
+    nx.routes["/view/CAPTURE"] = _nx_writes_the_file
+    server.show_result("gen", "deformed_shape", "WX", deform_scale=2.5)
+    display = _graphic(nx)["TYPE_OF_DISPLAY"]
+    assert display["DEFORM"] == {"OPT_CHECK": True, "SCALE_FACTOR": 2.5}
+    assert "CONTOUR" not in display
+
+
+def test_show_result_names_the_components_nx_refused(nx):
+    nx.routes["/view/RESULTGRAPHIC"] = {"error": {"message": "MIDAS GEN NX second query is wrong"}}
+    with pytest.raises(ToolError, match="known ones: Mxx, Myy"):
+        server.show_result("gen", "plate_forces", "DL", component="Q")
+    assert not any(url.endswith("/view/CAPTURE") for _, url, _ in nx.sent)
+
+
+def test_show_result_passes_a_missing_load_case_on(nx):
+    nx.routes["/view/RESULTGRAPHIC"] = {"error": {"message": "MIDAS GEN NX Can not find load case."}}
+    with pytest.raises(ToolError, match="Can not find load case"):
+        server.show_result("gen", "displacement", "NOPE")
+
+
+def test_show_result_refuses_bad_arguments_before_asking_nx(nx):
+    with pytest.raises(ToolError, match="deform_scale"):
+        server.show_result("gen", "deformed_shape", "DL", deform_scale=0)
+    with pytest.raises(ToolError, match="load_case is empty"):
+        server.show_result("gen", "reactions", "  ")
+    with pytest.raises(ToolError, match="width"):
+        server.show_result("gen", "reactions", "DL", width=9000)
     assert nx.sent == []
 
 

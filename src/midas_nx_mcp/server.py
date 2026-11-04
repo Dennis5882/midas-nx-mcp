@@ -38,8 +38,11 @@ mcp = MCPServer(
     instructions=(
         "Access to the model open in MIDAS Gen NX (product='gen') or Civil NX "
         "(product='civil'). Start with check_connection. Use list_tables and "
-        "describe_table before read_table; list_result_tables before result_table. "
-        "capture_view shows the NX model window as an image. "
+        "describe_table before read_table; list_result_tables before result_table "
+        "(it says what each category of table needs in NX first). "
+        "capture_view shows the NX model window as an image; show_result first sets "
+        "a result graphic (reactions, displacement, deformed shape, beam diagram, "
+        "plate forces) and then captures it. "
         "run_analysis, save_copy, write_records and delete_records change the model or its "
         "file: call them first without confirm_token, show the preview to the user, "
         "and apply with the returned confirm_token only after the user agrees. "
@@ -87,6 +90,35 @@ ModelInfo = Literal[
     "story_irregularity_parameter",
     "selection",
 ]
+
+# list_result_tables' categories, by the midas_nx.post module that defines the type.
+RESULT_CATEGORIES = {
+    "pre_process": ("model", "Model data; no analysis needed."),
+    "result_1": ("analysis", "Needs the analysis run in NX (run_analysis)."),
+    "story": (
+        "story",
+        (
+            "Gen only. Needs stories defined in NX (its Story command, with the story "
+            "data calculated) before the analysis is run."
+        ),
+    ),
+    "design": ("design", "Needs the analysis and the design settings (code, members) in NX."),
+}
+ResultCategory = Literal["model", "analysis", "story", "design"]
+NO_RESULT_TEXT = "no analysis result"
+
+# show_result: NX's result mode and its components, the default first. Live on
+# Gen NX (2026-11-04) NX took and drew every pair here; it refuses a name it
+# does not know with "second query is wrong". Civil NX not yet tried.
+RESULT_VIEWS = {
+    "reactions": ("reactionforces/moments", ("FZ", "FX", "FY", "MX", "MY", "MZ")),
+    "displacement": ("displacementcontour", ("DXYZ", "DX", "DY", "DZ")),
+    "deformed_shape": ("deformedshape", ("DXYZ", "DX", "DY", "DZ")),
+    "beam_diagram": ("beamdiagrams", ("My", "Mz", "Fx", "Fy", "Fz", "Mx")),
+    "plate_forces": ("plateforces/moments", ("Mxx", "Myy", "Mxy", "Fxx", "Fyy", "Fxy")),
+}
+ResultView = Literal["reactions", "displacement", "deformed_shape", "beam_diagram", "plate_forces"]
+WRONG_QUERY_TEXT = "second query is wrong"
 
 # Counted by model_summary, in this order.
 SUMMARY_TABLES = ("NODE", "ELEM", "MATL", "SECT", "THIK", "STLD")
@@ -379,18 +411,31 @@ def read_model_info(product: Product, what: ModelInfo, limit: int | None = None)
 
 @mcp.tool(annotations=READ_ONLY)
 @_guarded
-def list_result_tables(search: str = "") -> list[dict]:
-    """List the result/report table types result_table accepts.
+def list_result_tables(search: str = "", category: ResultCategory | None = None) -> dict:
+    """List the result/report table types result_table accepts, by category.
+
+    Categories: "model" (mass, weights, loads, sections, supports; no analysis
+    needed), "analysis" (reactions, displacements, member forces, stresses,
+    modes), "story" (Gen: story drift, displacement, shear, stability,
+    irregularity checks), "design" (design member forces). Each category says
+    what NX needs before its tables have data.
 
     search: case-insensitive text matched against the type and its name,
-    e.g. "reaction", "beam", "story". No NX call is made.
+    e.g. "reaction", "beam", "drift". No NX call is made.
     """
     needle = search.strip().lower()
-    return [
-        {"table_type": table_type, "name": name}
+    tables = [
+        {"table_type": table_type, "name": name, "category": RESULT_CATEGORIES[group][0]}
         for table_type, name in catalog.result_table_types().items()
-        if not needle or needle in table_type.lower() or needle in name.lower()
+        for group in [name.split(".", 1)[0]]
+        if (category is None or RESULT_CATEGORIES[group][0] == category)
+        and (not needle or needle in table_type.lower() or needle in name.lower())
     ]
+    shown = {t["category"] for t in tables}
+    return {
+        "categories": {c: needs for c, needs in RESULT_CATEGORIES.values() if c in shown},
+        "tables": tables,
+    }
 
 
 @mcp.tool(annotations=READ_ONLY)
@@ -405,11 +450,16 @@ def result_table(
 ) -> dict:
     """One result table from the open model (POST /post/TABLE, nothing exported).
 
-    table_type: from list_result_tables, e.g. "REACTIONG". load_cases: names
-    with a type suffix, e.g. ["DL(ST)", "COMB1(CB)"]. components: column
-    names to keep. keys: node or element ids to restrict to. Analysis result
-    tables need the analysis to have been run in NX. Rows beyond limit
-    (capped by MIDAS_MAX_ROWS) are counted, not returned.
+    table_type: from list_result_tables. Common ones: "REACTIONG" (support
+    reactions), "DISPLACEMENTG" (nodal displacements), "BEAMFORCE" (beam/column
+    member forces), "PLATEFORCEL" (plate forces), "EIGENVALUEMODE" (periods and
+    modes), "STORY_MASS" / "STORYWEIGHT" (story mass and weight, no analysis
+    needed), "STORY_DRIFT_X" / "STORY_DRIFT_Y" and "STORY_SHEAR_FOR_RS" (Gen
+    story checks), "BEAMDESIGNFORCES" / "COLUMNDESIGNFORCES" (design forces).
+    load_cases: names with a type suffix, e.g. ["DL(ST)", "COMB1(CB)"]; the
+    model's load cases are in read_table("STLD"). components: column names to
+    keep. keys: node or element ids to restrict to. Rows beyond limit (capped
+    by MIDAS_MAX_ROWS) are counted, not returned.
     """
     table_type = table_type.strip().upper()
     if table_type not in catalog.result_table_types():
@@ -418,15 +468,23 @@ def result_table(
         raise ToolError(
             f"Unknown table_type {table_type!r}.{hint} Call list_result_tables to see all."
         )
+    group = catalog.result_table_types()[table_type].split(".", 1)[0]
     # Never pass export_path (writes a file on the NX machine) or opt_cs (switches
     # NX's construction-stage view): phase 1 reads, it does not change state.
-    response = get_table(
-        table_type,
-        load_case_names=load_cases,
-        components=components,
-        node_elems={"KEYS": keys} if keys else None,
-        client=_client(product),
-    )
+    try:
+        response = get_table(
+            table_type,
+            load_case_names=load_cases,
+            components=components,
+            node_elems={"KEYS": keys} if keys else None,
+            client=_client(product),
+        )
+    except MidasAPIError as exc:
+        if group != "story" or NO_RESULT_TEXT not in str(exc):
+            raise
+        # Live: an analysed model still answers this for story tables unless
+        # the stories were calculated before the analysis.
+        raise ToolError(f"{exc} {RESULT_CATEGORIES['story'][1]}") from exc
     table = unwrap_table(response)
     if not table:
         # No table in the body: hand the server's own words back (rule 6).
@@ -456,14 +514,22 @@ def capture_view(product: Product, width: int | None = None, height: int | None 
     whatever the user has set in NX; this tool does not change them. width and
     height are in pixels (each at most 2000); leave them out for the window size.
     """
-    argument: dict[str, Any] = {}
+    return _capture(product, _capture_size(width, height))
+
+
+def _capture_size(width: int | None, height: int | None) -> dict[str, int]:
+    size = {}
     for name, value in (("WIDTH", width), ("HEIGHT", height)):
         if value is not None:
             if not 1 <= value <= MAX_CAPTURE_PIXELS:
                 raise ToolError(f"{name.lower()} must be 1..{MAX_CAPTURE_PIXELS}, got {value}")
-            argument[name] = value
+            size[name] = value
+    return size
+
+
+def _capture(product: Product, size: dict[str, int]) -> Image:
     path = _generated_path(CAPTURE_PREFIX, product, ".png")
-    capture({"EXPORT_PATH": path.as_posix(), **argument}, client=_client(product))
+    capture({"EXPORT_PATH": path.as_posix(), **size}, client=_client(product))
     if not _file_landed(path):
         raise ToolError(
             f"NX answered the capture but {path} did not appear on this PC. NX may be "
@@ -472,6 +538,91 @@ def capture_view(product: Product, width: int | None = None, height: int | None 
     data = path.read_bytes()
     path.unlink()  # our own generated file only (rule 8)
     return Image(data=data, format="png")
+
+
+@mcp.tool(annotations=WRITES_FILE)
+@_guarded
+def show_result(
+    product: Product,
+    result: ResultView,
+    load_case: str,
+    component: str | None = None,
+    show_values: bool = False,
+    deform_scale: float | None = None,
+    width: int | None = None,
+    height: int | None = None,
+) -> Image:
+    """Show an analysis result in the NX window and return it as a PNG.
+
+    Like picking a result under Results in NX (POST /view/RESULTGRAPHIC, then
+    /view/CAPTURE): the window keeps showing it afterwards. The model and its
+    results are not changed. Needs the analysis run in NX.
+
+    result and its components (default first):
+      "reactions"      FZ, FX, FY, MX, MY, MZ (values are always shown)
+      "displacement"   DXYZ, DX, DY, DZ (contour)
+      "deformed_shape" DXYZ, DX, DY, DZ (deformed over undeformed)
+      "beam_diagram"   My, Mz, Fx (axial), Fy, Fz (shear), Mx (torsion)
+      "plate_forces"   Mxx, Myy, Mxy, Fxx, Fyy, Fxy
+    load_case: a name from read_table("STLD"), e.g. "DL"; a combination with
+    its type suffix as result_table takes it, e.g. "gLCB1(CB)", "cLCB1(CBC)".
+    show_values writes the numbers on the picture; deform_scale scales the
+    deformed shape (NX's own scale when left out). width/height: pixels, at
+    most 2000 each.
+    """
+    mode, components = RESULT_VIEWS[result]
+    comp = _component(result, component, components)
+    case_name, case_type = _load_case(load_case)
+    display: dict[str, Any] = {"LEGEND": {"OPT_CHECK": True}}
+    if result == "deformed_shape":
+        deform: dict[str, Any] = {"OPT_CHECK": True}
+        if deform_scale is not None:
+            if not deform_scale > 0:
+                raise ToolError(f"deform_scale must be above 0, got {deform_scale}")
+            deform["SCALE_FACTOR"] = deform_scale
+        display |= {"DEFORM": deform, "UNDEFORMED": {"OPT_CHECK": True}}
+    elif result != "reactions":
+        display["CONTOUR"] = {"OPT_CHECK": True}
+    if show_values or result == "reactions":
+        display["VALUES"] = {"OPT_CHECK": True}
+    size = _capture_size(width, height)
+    argument = {
+        "CURRENT_MODE": mode,
+        "LOAD_CASE_COMB": {"TYPE": case_type, "NAME": case_name},
+        "COMPONENTS": {"COMP": comp},
+        "TYPE_OF_DISPLAY": display,
+    }
+    try:
+        view.set_result_graphic(argument, client=_client(product))
+    except MidasAPIError as exc:
+        if WRONG_QUERY_TEXT in str(exc):
+            # Live: NX's answer to a component or mode it does not take.
+            raise ToolError(
+                f"{exc} NX did not accept component {comp!r} for {result!r}; "
+                f"known ones: {', '.join(components)}."
+            ) from exc
+        raise
+    return _capture(product, size)
+
+
+def _component(result: str, component: str | None, known: tuple[str, ...]) -> str:
+    if component is None:
+        return known[0]
+    wanted = component.strip()
+    # NX's spelling (My, Fxx, DXYZ) whatever case was asked for; others go to NX as given.
+    return next((k for k in known if k.lower() == wanted.lower()), wanted)
+
+
+def _load_case(load_case: str) -> tuple[str, str]:
+    """``"DL"`` -> ``("DL", "ST")``; ``"gLCB1(CB)"`` -> ``("gLCB1", "CB")``."""
+    text = load_case.strip()
+    if text.endswith(")") and "(" in text:
+        name, _, kind = text[:-1].rpartition("(")
+        if name.strip() and kind.strip():
+            return name.strip(), kind.strip().upper()
+    if not text:
+        raise ToolError("load_case is empty; read_table('STLD') lists the load cases")
+    return text, "ST"
 
 
 def _output_folder() -> Path:
@@ -900,6 +1051,77 @@ def delete_records(
     if side:
         result["also_changed"] = side
     return result
+
+
+# Prompts: fixed review workflows a client offers as a menu. They only use the
+# read tools above; each one says so, so the model does not reach for a write.
+
+READ_ONLY_REVIEW = (
+    "This is a review: use read tools only and change nothing in the model. "
+    "If something needs fixing, say what and where, and leave the change to the user."
+)
+
+
+@mcp.prompt(title="Check support reactions")
+def check_reactions(product: str = "gen", load_case: str = "") -> str:
+    """Sum the support reactions and compare them with the model's weight and loads."""
+    case = f"the load case {load_case!r}" if load_case else "each static load case"
+    return (
+        f"Check the support reactions of the {product} model for {case}.\n"
+        f"1. check_connection(product={product!r}); read_table(product={product!r}, "
+        "table='STLD') for the load case names.\n"
+        "2. result_table(table_type='REACTIONG') with load_cases like 'DL(ST)'. If NX says "
+        "there is no analysis result, stop and tell the user to run the analysis.\n"
+        "3. Sum FX, FY, FZ over all supports. For self-weight and dead load cases compare "
+        "the sum of FZ with the weight from result_table(table_type='STORYWEIGHT') or "
+        "'ELEMENTWEIGHT'; for lateral cases the horizontal sums should balance the "
+        "applied lateral load.\n"
+        "4. Report a short table (load case, sum FX/FY/FZ, expected, difference %), and "
+        "flag supports with an unusually large share or a reaction in an unexpected "
+        "direction.\n" + READ_ONLY_REVIEW
+    )
+
+
+@mcp.prompt(title="Check story drift")
+def check_story_drift(allowable_ratio: str = "", load_cases: str = "") -> str:
+    """Story drift ratios against an allowable value (Gen NX)."""
+    limit = (
+        f"the allowable drift ratio {allowable_ratio}"
+        if allowable_ratio
+        else "the allowable drift ratio (ask the user for it and for the design code "
+        "it comes from; do not assume one)"
+    )
+    cases = f" for {load_cases}" if load_cases else ""
+    return (
+        f"Check the story drift of the Gen model{cases} against {limit}.\n"
+        "1. check_connection(product='gen'); list_result_tables(category='story').\n"
+        "2. result_table(product='gen', table_type='STORY_DRIFT_X') and 'STORY_DRIFT_Y'. "
+        "If NX says there is no analysis result, tell the user the analysis must be run "
+        "with the stories calculated first, and stop.\n"
+        "3. For each direction and load case give the largest drift ratio and its story, "
+        "and list every story over the limit.\n"
+        "4. Report a table (direction, load case, story, drift ratio, limit, OK / NG).\n"
+        + READ_ONLY_REVIEW
+    )
+
+
+@mcp.prompt(title="Review the model")
+def review_model(product: str = "gen") -> str:
+    """A first look at a model: size, units, properties, supports and loads."""
+    return (
+        f"Give a first review of the {product} model open in NX.\n"
+        f"1. check_connection(product={product!r}) and model_summary.\n"
+        "2. read_table for MATL, SECT and THIK: list them, and note any that no element "
+        "uses (compare with the property ids in read_table('ELEM')). For a big model read "
+        "ELEM in parts and say how much was checked.\n"
+        "3. result_table(table_type='SUPPORTS'): does the model have supports, and where?\n"
+        "4. read_table('STLD') and the load tables that list_tables(search='load') finds: "
+        "which load cases have no load assigned?\n"
+        "5. result_table(table_type='STORY_MASS') or 'STORYWEIGHT' if the model has stories.\n"
+        "6. capture_view for a picture of the model.\n"
+        "Report: model size and units; findings ranked by how likely they are mistakes; "
+        "what could not be checked and why.\n" + READ_ONLY_REVIEW
+    )
 
 
 def main() -> None:

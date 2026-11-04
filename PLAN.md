@@ -97,6 +97,36 @@ Done when:
 | `read_table` / `list_tables` on `/DESIGN/*` (79 tables) | GET | DSTL, RC DCTL read (empty: no design code) |
 | `describe_table` on `/DESIGN/*` | refused: `/info/DESIGN/...` is 404 on both products (SDK notes) | - |
 | `read_model_info` | GET `/ope/PROJECTSTATUS`, `SECTPROP`, `STORY_PARAM`, `STORY_IRR_PARAM` (Gen only), `/view/SELECT` | all five answered |
+| `show_result` | `/view/RESULTGRAPHIC` (mode, load case, one component, display types), then `/view/CAPTURE` as above | 2026-11-04, see below |
+| `list_result_tables` by category | no NX call | the "story" note: see below |
+
+`show_result`, live on Gen NX 2026 (2026-11-04), on a `save_copy` of the
+author's 6-story RC building (3137 nodes, 24 load cases), analysed by
+`run_analysis` in 70 s; the original file was not touched.
+
+- There is no `/info/view/RESULTGRAPHIC` (404) and the manual names three
+  modes only, so the modes and components were found by trying them.
+  `reactionforces/moments` (FX..MZ), `displacementcontour` and `deformedshape`
+  (DX, DY, DZ, DXYZ), `beamdiagrams` (Fx, Fy, Fz, Mx, My, Mz) and
+  `plateforces/moments` (Fxx..Mxy): NX drew and captured every pair, 5-8 s
+  each through the tool. The captures were looked at, not only the answers:
+  NX answers "command complete" to a mode with nothing switched on in
+  `TYPE_OF_DISPLAY` and draws nothing, so the tool always turns on the legend
+  and the contour, deform or values that suit the mode.
+- NX also took the spaced "displacement contour"; the tool sends the
+  compact names.
+- Load combinations: `gLCB1` as type `CB` and `cLCB1` as `CBC` both drew.
+- Refusals are quick and leave the session alive: an unknown mode or
+  component answers "second query is wrong" (0.4 s), an unknown load case
+  "Can not find load case".
+- The deformed shape comes out with scale factor 0 (nothing to see) unless
+  `DEFORM.SCALE_FACTOR` is sent; `deform_scale` sends it.
+- Civil NX: the route answers (SDK notes), the modes were not tried.
+
+Story tables: on that model (stories defined, no story calculation) every
+story table answered "no analysis result" before the analysis, as the SDK
+notes say; `result_table` now adds what NX needs. STORY_MASS answered with
+rows (it is model data).
 
 Left out on purpose: `/post/STEELCODECHECK` (has held a whole Gen session
 behind a dialog), `*-ANAL` design runs (state changes; crash history on
