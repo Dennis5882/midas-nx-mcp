@@ -21,6 +21,9 @@ Built by a MIDAS IT team member as a personal project; **not an official MIDAS I
 - "Summarise the Gen model." - node, element, material, section, load case counts
 - "Show the DL reactions." - result tables after an analysis
 - "Show me the model." - a picture of the NX window
+- "Show the DL moment diagram.", "Show the WX deformed shape." - NX draws the result, you get the picture
+- "Check the story drift." - ready-made checks in the client's prompt menu (reactions, story drift, model review)
+- "Generate the KDS concrete load combinations." - previewed, applied only after you agree
 - "Which design code is set?" - design parameter tables
 - "Add a node at (4, 3, 0)", "Run the analysis" - previewed, applied only after you agree
 
@@ -102,9 +105,10 @@ Reading (nothing in the model changes):
 | `read_table(product, table, ids?, limit?)` | records, capped at `MIDAS_MAX_ROWS` |
 | `model_summary(product)` | counts of the main tables, and the unit system |
 | `read_model_info(product, what)` | project status, section properties, story check parameters, current selection |
-| `list_result_tables(search?)` | the result table types `result_table` accepts |
+| `list_result_tables(search?, category?)` | the result table types `result_table` accepts, as model / analysis / story / design, each with what NX needs first |
 | `result_table(product, table_type, load_cases?, components?, keys?, limit?)` | one result table; nothing exported |
 | `capture_view(product, width?, height?)` | the NX window as a PNG |
+| `show_result(product, result, load_case, component?, show_values?, deform_scale?)` | has NX draw reactions, displacement, deformed shape, beam diagram or plate forces for a load case or combination, and returns the picture. Changes what the NX window shows, not the model |
 
 Changing - each is called twice: first a preview with a `confirm_token`, then
 the same call with that token. It applies only if nothing changed in between,
@@ -116,9 +120,12 @@ and reads the table back afterwards:
 | `save_copy(product)` | Save As to a generated name in `MIDAS_OUTPUT_DIR`; NX then works on the copy and the original stays as last saved. Gives a new document a file |
 | `write_records(product, table, records, mode)` | creates or updates up to 50 `/db` or `/DESIGN` records |
 | `delete_records(product, table, ids)` | deletes up to 50 records by id; nodes still used by elements are refused; a `/DESIGN` record NX resets instead of removing is reported as such |
+| `generate_load_combinations(product, kind)` | Gen only: NX adds its KDS concrete, steel or SRC combinations from the load cases; the existing ones stay |
 
 Any write discards the analysis results in NX (even one that stores the same
 value); run the analysis again before reading results.
+
+Prompts: `check_reactions`, `check_story_drift`, `review_model` - fixed review steps that use the read tools only.
 
 Never exposed: new/open/import document, emptying a table.
 

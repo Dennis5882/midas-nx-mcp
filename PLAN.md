@@ -128,6 +128,14 @@ story table answered "no analysis result" before the analysis, as the SDK
 notes say; `result_table` now adds what NX needs. STORY_MASS answered with
 rows (it is model data).
 
+After the analysis, the first story table asked for (STORY_DRIFT_X) held
+the session past the 20 s timeout, and the two calls behind it timed out
+too; no dialog window was open. A minute later NX answered again, and from
+then on every story table answered within 1.5 s: STORY_DRIFT_X "Unknown
+Error", the others "no analysis result" (no story calculation in this
+model), BEAMDESIGNFORCES an empty table. Seen once; the timeout text did
+its job, so the timeout stays as it is until this repeats.
+
 Left out on purpose: `/post/STEELCODECHECK` (has held a whole Gen session
 behind a dialog), `*-ANAL` design runs (state changes; crash history on
 Civil), `/post/PM` (response size and shape unknown), `/ope/STORYPROP`
@@ -169,6 +177,19 @@ before the user answered.
       `mcp-save-civil-...mcbz` written, the window title moved to the copy
       (so Save As does re-point the open document through the API too), and
       the analysis results survived the save.
+
+`generate_load_combinations` (`/ope/LCOM-CONC|STEEL|SRC`, OPTION ADD and
+DGNCODE only, as the SDK verified on 2026-10-26): live on the same copy
+(2026-11-04). Concrete, with 252 combinations already there, added a full
+second set of 284 (cLCB253...) in 1.9 s and changed none; steel, into an
+empty LCOM-STEEL, added 284 (sLCB1 "1.4(D)", ...). The 24 load cases (D, L,
+W and seismic types) are what makes it 284. The first reply carried every
+record (200 KB); the tool now sends id, name, type and description, capped
+at MIDAS_MAX_ROWS. Not offered: OPTION REPLACE (removes every existing
+combination first), LCOM-GEN ("Wrong Field" on both schemas, SDK), Civil
+(the routes are 404). Still to do from the same list: `/ope/LINEBMLD` (node
+defined load line only; selected elements answer "Wrong Field") and
+`/ope/DIVIDEELEM`; design checks wait for a dialog-safe way to run them.
 
 Never: see AGENTS.md rule 4.
 

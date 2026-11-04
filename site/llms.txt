@@ -79,6 +79,7 @@ env = { MIDAS_MAPI_KEY_GEN = "<Gen NX key>", MIDAS_MAPI_KEY_CIVIL = "<Civil NX k
 - list_result_tables(search?): result_table이 받는 결과 테이블 종류
 - result_table(product, table_type, load_cases?, components?, keys?, limit?): 해석 결과 테이블
 - capture_view(product, width?, height?): NX 창 PNG
+- show_result(product, result, load_case, component?, show_values?, deform_scale?, width?, height?): NX가 결과를 그리게 한 뒤 PNG로 돌려준다. result: "reactions"(FZ, FX, FY, MX, MY, MZ), "displacement"·"deformed_shape"(DXYZ, DX, DY, DZ), "beam_diagram"(My, Mz, Fx, Fy, Fz, Mx), "plate_forces"(Mxx, Myy, Mxy, Fxx, Fyy, Fxy). load_case: "DL" 또는 "gLCB1(CB)"처럼 유형을 붙인 조합. NX 창 화면만 바뀌고 모델은 바뀌지 않는다.
 
 변경 도구 (두 단계):
 
@@ -86,6 +87,11 @@ env = { MIDAS_MAPI_KEY_GEN = "<Gen NX key>", MIDAS_MAPI_KEY_CIVIL = "<Civil NX k
 - save_copy(product): MIDAS_OUTPUT_DIR에 자동 이름으로 다른 이름 저장. 이후 NX는 사본에서 작업한다.
 - write_records(product, table, records, mode): `/db` 또는 `/DESIGN` 기록 생성(create)이나 수정(update). 한 번에 50개까지
 - delete_records(product, table, ids): id로 기록 삭제. 한 번에 50개까지. 요소가 쓰는 절점은 삭제가 거부된다.
+- generate_load_combinations(product, kind): Gen만. kind "concrete"·"steel"·"src". NX가 하중 케이스와 유형으로 KDS 하중조합을 만들어 기존 조합 뒤에 추가한다(수백 개일 수 있음). 이미 생성한 모델에 다시 하면 한 벌 더 생긴다.
+
+프롬프트(읽기 도구만 사용): check_reactions(product, load_case), check_story_drift(allowable_ratio, load_cases), review_model(product).
+
+결과 테이블: list_result_tables(category)는 "model"(해석 불필요), "analysis"(해석 필요), "story"(Gen. 층 정의와 층 계산 후 해석 필요), "design"으로 나눠 준다.
 
 ## 에이전트가 지킬 규칙
 

@@ -469,3 +469,84 @@ def test_the_start_page_is_no_project(model, monkeypatch):
     for tool in (server.run_analysis, server.save_copy):
         with pytest.raises(ToolError, match="start page"):
             tool("gen")
+
+
+# --- generate_load_combinations -----------------------------------------------
+
+
+CASES = {1: {"NAME": "DL", "TYPE": "D"}, 2: {"NAME": "LL", "TYPE": "L"}}
+
+
+@pytest.fixture
+def combinations(model):
+    session = model[0]
+    table = FakeTable("LCOM-CONC", {1: {"NAME": "mine"}})
+    session.routes["/db/LCOM-CONC"] = table
+    session.routes["/db/STLD"] = FakeTable("STLD", CASES)
+
+    def nx_adds_two(method, url, body):
+        assert body["Argument"] == {"OPTION": "ADD", "DGNCODE": "KDS 41 20 : 2022"}
+        table.records |= {"2": {"NAME": "cLCB1"}, "3": {"NAME": "cLCB2"}}
+        return {"message": "MIDAS GEN NX command complete"}
+
+    session.routes["/ope/LCOM-CONC"] = nx_adds_two
+    return session, table
+
+
+def test_combinations_preview_changes_nothing(combinations):
+    session, _ = combinations
+    preview = server.generate_load_combinations("gen", "concrete")
+    assert preview["existing_names"] == ["mine"]
+    assert preview["load_cases"] == {"DL": "D", "LL": "L"}
+    assert "Existing combinations stay" in preview["warning"]
+    assert "already has 1" in preview["warning"]
+    assert _writes(session) == []
+
+
+def test_combinations_are_added_and_read_back(combinations):
+    session, _ = combinations
+    token = server.generate_load_combinations("gen", "concrete")["confirm_token"]
+    result = server.generate_load_combinations("gen", "concrete", confirm_token=token)
+    assert result["added"] == [{"id": "2", "NAME": "cLCB1"}, {"id": "3", "NAME": "cLCB2"}]
+    assert result["added_count"] == 2
+    assert result["removed"] == [] and "warning" not in result
+    assert result["server_message"] == "MIDAS GEN NX command complete"
+    assert _writes(session) == [("POST", session.sent[-2][1])]
+
+
+def test_combinations_refuse_a_token_from_other_load_cases(combinations):
+    session, _ = combinations
+    token = server.generate_load_combinations("gen", "concrete")["confirm_token"]
+    session.routes["/db/STLD"] = FakeTable("STLD", {**CASES, 3: {"NAME": "WX", "TYPE": "W"}})
+    with pytest.raises(ToolError, match="confirm_token"):
+        server.generate_load_combinations("gen", "concrete", confirm_token=token)
+    assert _writes(session) == []
+
+
+def test_combinations_that_add_nothing_are_not_reported_as_done(combinations):
+    session, _ = combinations
+    session.routes["/ope/LCOM-CONC"] = {"message": "MIDAS GEN NX command complete"}
+    token = server.generate_load_combinations("gen", "concrete")["confirm_token"]
+    result = server.generate_load_combinations("gen", "concrete", confirm_token=token)
+    assert "no new combination" in result["warning"]
+
+
+def test_combinations_are_refused_on_civil_before_asking_nx(nx):
+    with pytest.raises(ToolError, match="Gen NX only"):
+        server.generate_load_combinations("civil", "steel")
+    assert nx.sent == []
+
+
+def test_many_new_combinations_are_named_not_dumped(combinations):
+    session, table = combinations
+
+    def nx_adds_many(method, url, body):
+        table.records |= {str(i): {"NAME": f"cLCB{i}", "vCOMB": [1] * 50} for i in range(10, 20)}
+        return {"message": "ok"}
+
+    session.routes["/ope/LCOM-CONC"] = nx_adds_many
+    token = server.generate_load_combinations("gen", "concrete")["confirm_token"]
+    result = server.generate_load_combinations("gen", "concrete", confirm_token=token)
+    assert result["added_count"] == 10 and len(result["added"]) == 3  # MIDAS_MAX_ROWS
+    assert "vCOMB" not in result["added"][0]
+    assert "7 more added" in result["note"]

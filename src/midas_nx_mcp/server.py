@@ -43,8 +43,9 @@ mcp = MCPServer(
         "capture_view shows the NX model window as an image; show_result first sets "
         "a result graphic (reactions, displacement, deformed shape, beam diagram, "
         "plate forces) and then captures it. "
-        "run_analysis, save_copy, write_records and delete_records change the model or its "
-        "file: call them first without confirm_token, show the preview to the user, "
+        "run_analysis, save_copy, write_records, delete_records and "
+        "generate_load_combinations change the model or its file: call them first "
+        "without confirm_token, show the preview to the user, "
         "and apply with the returned confirm_token only after the user agrees. "
         "If a call times out, ask the user to look at the NX window for an open "
         "dialog instead of retrying."
@@ -118,6 +119,15 @@ RESULT_VIEWS = {
     "plate_forces": ("plateforces/moments", ("Mxx", "Myy", "Mxy", "Fxx", "Fyy", "Fxy")),
 }
 ResultView = Literal["reactions", "displacement", "deformed_shape", "beam_diagram", "plate_forces"]
+
+# generate_load_combinations: the SDK call, its design code, the table it fills.
+# Live on Gen (SDK, 2026-10-26): each adds two or more; Civil answers 404.
+COMBINATION_KINDS = {
+    "concrete": (ope.generate_load_combination_concrete, "KDS 41 20 : 2022", "LCOM-CONC"),
+    "steel": (ope.generate_load_combination_steel, "KDS 41 30 : 2022", "LCOM-STEEL"),
+    "src": (ope.generate_load_combination_src, "KDS 41 SRC : 2022", "LCOM-SRC"),
+}
+CombinationKind = Literal["concrete", "steel", "src"]
 WRONG_QUERY_TEXT = "second query is wrong"
 
 # Counted by model_summary, in this order.
@@ -1050,6 +1060,78 @@ def delete_records(
     side = {t: {"before": b, "after": a} for t, (b, a) in side.items() if b != a}
     if side:
         result["also_changed"] = side
+    return result
+
+
+@mcp.tool(annotations=CHANGES_MODEL)
+@_guarded
+def generate_load_combinations(
+    product: Product, kind: CombinationKind, confirm_token: str | None = None
+) -> dict:
+    """Have NX add its KDS design load combinations. Two steps: preview, then apply.
+
+    kind: "concrete" (KDS 41 20 : 2022, into LCOM-CONC), "steel" (KDS 41 30 :
+    2022, LCOM-STEEL) or "src" (KDS 41 SRC : 2022, LCOM-SRC). NX builds the
+    combinations from the model's static load cases and their load types and
+    appends them (cLCB1, cLCB2, ... for concrete); the existing ones stay.
+    Gen NX only: Civil NX has no such command. After applying, the table is
+    read back and the combinations NX added are returned. Any change discards
+    the analysis results.
+    """
+    if product != "gen":
+        raise ToolError("Generating load combinations is Gen NX only; Civil NX answers 404.")
+    generate, code, table = COMBINATION_KINDS[kind]
+    cls = catalog.db_tables()[table]
+    client = _client(product)
+    before, _ = _records(cls.get(client=client))
+    cases, _ = _records(catalog.db_tables()["STLD"].get(client=client))
+    token = _token("combinations", product, kind, before, cases)
+    if confirm_token is None:
+        warning = (
+            f"NX adds the {code} combinations it derives from these load cases and "
+            "their types; how many is NX's choice (hundreds for a model with many wind "
+            "and seismic cases). Existing combinations stay. The analysis results are "
+            "discarded."
+        )
+        if before:
+            warning += (
+                f" {table} already has {len(before)}: NX adds a full new set after them, "
+                "so a model that was generated before ends up with both sets."
+            )
+        return {
+            "preview": True,
+            "table": table,
+            "design_code": code,
+            "existing": len(before),
+            "existing_names": [r.get("NAME") for r in before.values()][: config.max_rows()],
+            "load_cases": {r.get("NAME"): r.get("TYPE") for r in cases.values()},
+            "warning": warning,
+            "confirm_token": token,
+        }
+    _check_token(confirm_token, token)
+    # ADD only: REPLACE deletes every existing combination first (SDK, live).
+    response = generate({"OPTION": "ADD", "DGNCODE": code}, client=client)
+    after, _ = _records(cls.get(client=client))
+    diff = _diff(before, after)
+    # Live: one run added 284 records of ~700 chars each; send their names.
+    added = [
+        {"id": k, **{f: v[f] for f in ("NAME", "ACTIVE", "DESC") if f in v}}
+        for k, v in diff["added"].items()
+    ]
+    n = config.max_rows()
+    result: dict[str, Any] = {
+        "applied": True,
+        "table": table,
+        "added_count": len(added),
+        "added": added[:n],
+        "changed": list(diff["changed"]),
+        "removed": diff["removed"],
+        "server_message": _server_message(response),
+    }
+    if len(added) > n:
+        result["note"] = f"{len(added) - n} more added; read_table({table!r}) lists them all"
+    if not added:
+        result["warning"] = "NX answered, but reading the table back shows no new combination."
     return result
 
 

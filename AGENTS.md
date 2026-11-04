@@ -91,8 +91,8 @@ a blocked session there.
    output folder, and `/view/RESULTGRAPHIC` (`show_result`: it changes what
    the NX window shows, never the model or its results). The only tools that change the model or its file are
    PLAN.md's phase 2 tools (`run_analysis`, `save_copy`, `write_records`,
-   `delete_records`), and each needs the `confirm_token` its own preview
-   returned. A new write tool follows the same pattern: preview, token from
+   `delete_records`, `generate_load_combinations`), and each needs the
+   `confirm_token` its own preview returned. A new write tool follows the same pattern: preview, token from
    the request and current state, apply, read back.
 4. **Never expose these, in any phase, as a tool:** `/doc/NEW` (discards the
    open document; has crashed Gen NX on a large model), `/doc/OPEN`,

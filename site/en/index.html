@@ -88,9 +88,9 @@
 
   <div class="stats">
     <div class="wrap">
-      <div class="stat"><b>13</b><p>tools</p></div>
-      <div class="stat"><b>9</b><p>read-only tools</p></div>
-      <div class="stat"><b>4</b><p>tools that change, after you confirm</p></div>
+      <div class="stat"><b>15</b><p>tools</p></div>
+      <div class="stat"><b>10</b><p>tools that leave the model alone</p></div>
+      <div class="stat"><b>5</b><p>tools that change, after you confirm</p></div>
       <div class="stat"><b>2</b><p>products: Gen NX · Civil NX</p></div>
     </div>
   </div>
@@ -105,8 +105,8 @@
       <div class="grid">
         <div class="card"><span class="tag">RD</span><h3>Read the model</h3><p>Ask "Summarise the Gen model" for counts of nodes, elements, materials, sections and load cases, and the unit system. Table schemas and records too.</p><div class="meta">model_summary · read_table</div></div>
         <div class="card"><span class="tag">RS</span><h3>Analysis results</h3><p>"Show the DL reactions", "Beam forces for DL": result tables on request, and checks based on them.</p><div class="meta">result_table</div></div>
-        <div class="card"><span class="tag">VW</span><h3>Screen capture</h3><p>"Show me the model" returns a picture of the NX window.</p><div class="meta">capture_view</div></div>
-        <div class="card"><span class="tag">WR</span><h3>Confirmed changes</h3><p>Add nodes, edit or delete records, run the analysis, save a copy. Every change is previewed first and applied only after you agree.</p><div class="meta">write_records · run_analysis</div></div>
+        <div class="card"><span class="tag">VW</span><h3>Result pictures</h3><p>"Show the DL moment diagram", "Show the WX deformed shape": NX draws the result and you get the picture.</p><div class="meta">show_result · capture_view</div></div>
+        <div class="card"><span class="tag">WR</span><h3>Confirmed changes</h3><p>Add nodes, edit or delete records, generate KDS load combinations, run the analysis, save a copy. Every change is previewed first and applied only after you agree.</p><div class="meta">write_records · generate_load_combinations</div></div>
       </div>
 
       <h3>How it works</h3>
@@ -221,6 +221,10 @@ env = { MIDAS_MAPI_KEY_GEN = "your Gen NX key", MIDAS_MAPI_KEY_CIVIL = "your Civ
           <tr><td>Current selection</td><td>"What is selected in NX right now?"</td></tr>
           <tr><td>Analysis results</td><td>"Show the DL reactions", "Show DL and LL displacements"</td></tr>
           <tr><td>Check</td><td>"Do the reactions add up to the self-weight?"</td></tr>
+          <tr><td>Result pictures</td><td>"Show the DL moment diagram", "Show the WX deformed shape", "Reactions for gLCB1(CB)"</td></tr>
+          <tr><td>Story results (Gen)</td><td>"Show the X story drift" (needs the stories calculated in NX before the analysis)</td></tr>
+          <tr><td>Load combinations</td><td>"Generate the KDS concrete load combinations" (previewed first)</td></tr>
+          <tr><td>Ready-made checks</td><td>The app's prompt menu: reactions, story drift, model review</td></tr>
           <tr><td>See it</td><td>"Show me the model"</td></tr>
         </table>
       </div>
@@ -279,10 +283,12 @@ env = { MIDAS_MAPI_KEY_GEN = "your Gen NX key", MIDAS_MAPI_KEY_CIVIL = "your Civ
           <tr><td><code>list_result_tables</code></td><td><span class="kind read">read</span></td><td>Result table types</td></tr>
           <tr><td><code>result_table</code></td><td><span class="kind read">read</span></td><td>One result table (load cases, components, keys)</td></tr>
           <tr><td><code>capture_view</code></td><td><span class="kind read">read</span></td><td>The NX window as a PNG</td></tr>
+          <tr><td><code>show_result</code></td><td><span class="kind read">view</span></td><td>Has NX draw a result (reactions, displacement, deformed shape, beam, plate) and returns the PNG; the model is untouched</td></tr>
           <tr><td><code>run_analysis</code></td><td><span class="kind write">change</span></td><td>Runs the analysis (NX saves the open file first)</td></tr>
           <tr><td><code>save_copy</code></td><td><span class="kind write">change</span></td><td>Saves a copy to <code>C:\temp</code> under a generated name</td></tr>
           <tr><td><code>write_records</code></td><td><span class="kind write">change</span></td><td>Creates or updates up to 50 records</td></tr>
           <tr><td><code>delete_records</code></td><td><span class="kind write">change</span></td><td>Deletes up to 50 records by id</td></tr>
+          <tr><td><code>generate_load_combinations</code></td><td><span class="kind write">change</span></td><td>(Gen) Adds the KDS concrete, steel or SRC combinations; existing ones stay</td></tr>
         </table>
       </div>
     </div>

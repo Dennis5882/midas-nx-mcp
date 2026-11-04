@@ -79,6 +79,7 @@ Reading (nothing in the model changes):
 - list_result_tables(search?): the result table types result_table accepts
 - result_table(product, table_type, load_cases?, components?, keys?, limit?): an analysis result table
 - capture_view(product, width?, height?): the NX window as a PNG
+- show_result(product, result, load_case, component?, show_values?, deform_scale?, width?, height?): has NX draw a result, then returns the PNG. result: "reactions" (FZ, FX, FY, MX, MY, MZ), "displacement" and "deformed_shape" (DXYZ, DX, DY, DZ), "beam_diagram" (My, Mz, Fx, Fy, Fz, Mx), "plate_forces" (Mxx, Myy, Mxy, Fxx, Fyy, Fxy). load_case: "DL", or a combination with its type, "gLCB1(CB)". Changes what the NX window shows, not the model.
 
 Changing (two steps):
 
@@ -86,6 +87,11 @@ Changing (two steps):
 - save_copy(product): Save As to a generated name in MIDAS_OUTPUT_DIR. NX then works on the copy.
 - write_records(product, table, records, mode): creates (create) or updates (update) `/db` or `/DESIGN` records, up to 50 at once
 - delete_records(product, table, ids): deletes records by id, up to 50 at once. Nodes used by elements are refused.
+- generate_load_combinations(product, kind): Gen only. kind "concrete", "steel" or "src". NX builds the KDS combinations from the load cases and their types and appends them after the existing ones (can be hundreds). Run again on a model that has them, and it adds a second set.
+
+Prompts (read tools only): check_reactions(product, load_case), check_story_drift(allowable_ratio, load_cases), review_model(product).
+
+Result tables: list_result_tables(category) sorts them into "model" (no analysis needed), "analysis" (needs the analysis), "story" (Gen; needs stories defined and calculated before the analysis) and "design".
 
 ## Rules for the agent
 

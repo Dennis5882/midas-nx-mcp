@@ -87,9 +87,9 @@
 
   <div class="stats">
     <div class="wrap">
-      <div class="stat"><b>13<small>개</small></b><p>도구</p></div>
-      <div class="stat"><b>9<small>개</small></b><p>읽기 전용 도구</p></div>
-      <div class="stat"><b>4<small>개</small></b><p>확인 후 변경 도구</p></div>
+      <div class="stat"><b>15<small>개</small></b><p>도구</p></div>
+      <div class="stat"><b>10<small>개</small></b><p>모델을 바꾸지 않는 도구</p></div>
+      <div class="stat"><b>5<small>개</small></b><p>확인 후 변경 도구</p></div>
       <div class="stat"><b>2<small>종</small></b><p>Gen NX · Civil NX</p></div>
     </div>
   </div>
@@ -104,8 +104,8 @@
       <div class="grid">
         <div class="card"><span class="tag">RD</span><h3>모델 읽기</h3><p>"Gen 모델 요약해줘"라고 하면 절점·요소·재료·단면·하중 케이스 개수와 단위계를 알려 줍니다. 테이블 구조와 기록도 볼 수 있습니다.</p><div class="meta">model_summary · read_table</div></div>
         <div class="card"><span class="tag">RS</span><h3>해석 결과</h3><p>"DL 반력 보여줘", "보 부재력 DL 기준으로"처럼 결과 테이블을 조회합니다. 결과를 근거로 검토도 시킬 수 있습니다.</p><div class="meta">result_table</div></div>
-        <div class="card"><span class="tag">VW</span><h3>화면 캡처</h3><p>"모델 화면 보여줘"라고 하면 NX 창을 그림으로 받아 봅니다.</p><div class="meta">capture_view</div></div>
-        <div class="card"><span class="tag">WR</span><h3>확인 후 변경</h3><p>절점 추가, 기록 수정·삭제, 해석 실행, 사본 저장. 모든 변경은 미리보기를 먼저 보여 주고, 사용자가 확인해야만 적용됩니다.</p><div class="meta">write_records · run_analysis</div></div>
+        <div class="card"><span class="tag">VW</span><h3>결과 그림</h3><p>"DL 모멘트도 보여줘", "WX 변형 형상 보여줘"라고 하면 NX가 결과를 그리고 그 화면을 그림으로 받아 봅니다.</p><div class="meta">show_result · capture_view</div></div>
+        <div class="card"><span class="tag">WR</span><h3>확인 후 변경</h3><p>절점 추가, 기록 수정·삭제, KDS 하중조합 생성, 해석 실행, 사본 저장. 모든 변경은 미리보기를 먼저 보여 주고, 사용자가 확인해야만 적용됩니다.</p><div class="meta">write_records · generate_load_combinations</div></div>
       </div>
 
       <h3>동작 방식</h3>
@@ -220,6 +220,10 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
           <tr><td>현재 선택</td><td>"지금 NX에서 선택한 거 뭐야?"</td></tr>
           <tr><td>해석 결과</td><td>"DL 반력 보여줘", "DL, LL 변위 보여줘"</td></tr>
           <tr><td>검토</td><td>"반력 합이 자중과 맞는지 확인해줘"</td></tr>
+          <tr><td>결과 그림</td><td>"DL 모멘트도 보여줘", "WX 변형 형상 보여줘", "gLCB1(CB) 반력 그림"</td></tr>
+          <tr><td>층 결과 (Gen)</td><td>"X방향 층간변위 보여줘" (NX에서 층 계산 후 해석해야 나옵니다)</td></tr>
+          <tr><td>하중조합</td><td>"KDS 콘크리트 하중조합 만들어줘" (미리보기 후 적용)</td></tr>
+          <tr><td>정해진 검토</td><td>앱의 프롬프트 메뉴: 반력 검토, 층간변위 검토, 모델 점검</td></tr>
           <tr><td>화면</td><td>"모델 화면 보여줘"</td></tr>
         </table>
       </div>
@@ -278,10 +282,12 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
           <tr><td><code>list_result_tables</code></td><td><span class="kind read">읽기</span></td><td>결과 테이블 종류</td></tr>
           <tr><td><code>result_table</code></td><td><span class="kind read">읽기</span></td><td>해석 결과 테이블 (하중 케이스, 성분, 대상 지정)</td></tr>
           <tr><td><code>capture_view</code></td><td><span class="kind read">읽기</span></td><td>NX 화면 PNG</td></tr>
+          <tr><td><code>show_result</code></td><td><span class="kind read">화면</span></td><td>결과 그림(반력·변위·변형·보·판)을 그려서 PNG로. 모델은 그대로</td></tr>
           <tr><td><code>run_analysis</code></td><td><span class="kind write">변경</span></td><td>해석 실행 (NX가 먼저 현재 파일에 저장)</td></tr>
           <tr><td><code>save_copy</code></td><td><span class="kind write">변경</span></td><td><code>C:\temp</code>에 자동 이름으로 사본 저장</td></tr>
           <tr><td><code>write_records</code></td><td><span class="kind write">변경</span></td><td>기록 생성·수정, 한 번에 50개까지</td></tr>
           <tr><td><code>delete_records</code></td><td><span class="kind write">변경</span></td><td>id로 기록 삭제, 한 번에 50개까지</td></tr>
+          <tr><td><code>generate_load_combinations</code></td><td><span class="kind write">변경</span></td><td>(Gen) KDS 콘크리트·강재·SRC 하중조합 추가. 기존 조합은 그대로</td></tr>
         </table>
       </div>
     </div>
