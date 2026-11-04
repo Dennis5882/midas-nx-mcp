@@ -5,7 +5,7 @@ MCP clients) read the model open in **MIDAS Gen NX** or **MIDAS Civil NX**, and
 change it only through steps you see and confirm first. Built on the
 [`midas-nx`](https://github.com/Dennis5882/MIDAS-API-NX-SDK) SDK.
 
-Personal, employee-led project; **not an official MIDAS IT product**.
+Built by a MIDAS IT team member as a personal project; **not an official MIDAS IT product**.
 
 > Status: alpha. Verified live on Gen NX 2026 and Civil NX 2026 on small test
 > models (see `PLAN.md`); not yet used on large production models.
@@ -138,6 +138,14 @@ npx @modelcontextprotocol/inspector .venv\Scripts\python.exe -m midas_nx_mcp.ser
 
 `AGENTS.md` holds the safety rules every tool follows, and `PLAN.md` what has
 been verified live and what is open.
+
+## Contact
+
+Bugs and ideas for this server go to
+[GitHub Issues](https://github.com/Dennis5882/midas-nx-mcp/issues); questions about
+the products, licensing or the Open API service itself go to MIDAS IT's official
+support channels. For anything else, the author is Dennis:
+[sjj0507@midasit.com](mailto:sjj0507@midasit.com) or [LinkedIn](https://www.linkedin.com/in/dennis58).
 
 ## License
 

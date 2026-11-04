@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>midas-nx-mcp</title>
+<meta name="description" content="A local MCP server that lets AI apps such as Claude Desktop read the model open in MIDAS Gen NX or Civil NX, and change it only after you confirm a preview. Install and usage.">
+<meta name="theme-color" content="#0A1A2F">
+<link rel="canonical" href="https://dennis5882.github.io/midas-nx-mcp/en/">
+<link rel="alternate" hreflang="ko" href="https://dennis5882.github.io/midas-nx-mcp/">
+<link rel="alternate" hreflang="en" href="https://dennis5882.github.io/midas-nx-mcp/en/">
+<link rel="alternate" hreflang="x-default" href="https://dennis5882.github.io/midas-nx-mcp/">
+<link rel="alternate" type="text/markdown" title="Summary for AI agents (llms.txt)" href="llms.txt">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "midas-nx-mcp",
+  "inLanguage": "en",
+  "description": "A local MCP server that lets AI apps read the model open in MIDAS Gen NX or Civil NX and change it only after the user confirms a preview.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Windows",
+  "license": "https://opensource.org/licenses/MIT",
+  "isAccessibleForFree": true,
+  "url": "https://dennis5882.github.io/midas-nx-mcp/en/",
+  "downloadUrl": "https://github.com/Dennis5882/midas-nx-mcp/releases/latest",
+  "codeRepository": "https://github.com/Dennis5882/midas-nx-mcp",
+  "softwareHelp": "https://github.com/Dennis5882/midas-nx-mcp#readme",
+  "sameAs": ["https://pypi.org/project/midas-nx-mcp/"],
+  "author": {"@type": "Person", "name": "Dennis5882", "url": "https://github.com/Dennis5882"}
+}
+</script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><picture><source srcset="../assets/img/midas-logo-white.png" media="(prefers-color-scheme: dark)"><img class="logo" src="../assets/img/midas-logo-black.png" alt="MIDAS" width="81" height="24"></picture><span class="brand-name">nx-mcp</span></a>
+    <div class="top-right">
+      <nav class="links">
+        <a href="#install">Install</a>
+        <a href="#use">Usage</a>
+        <a class="hide-sm" href="#safety">Safety</a>
+        <a class="hide-sm" href="#tools">Tools</a>
+        <a class="hide-sm" href="#trouble">Troubleshooting</a>
+        <a class="hide-sm" href="https://github.com/Dennis5882/midas-nx-mcp">GitHub</a>
+      </nav>
+      <div class="lang" aria-label="Language / 언어">
+        <a href="../" hreflang="ko" lang="ko">한국어</a>
+        <a href="./" hreflang="en" lang="en" aria-current="true">EN</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div class="eyebrow">MCP Server for MIDAS NX</div>
+      <h1>Ask your AI about <span class="hl">your MIDAS NX model.</span></h1>
+      <p class="lead">
+        A local MCP server that lets AI apps such as Claude Desktop read the model open in
+        <strong>Gen NX</strong> / <strong>Civil NX</strong>, show analysis results,
+        and apply only the changes you confirm.
+      </p>
+      <div class="cta">
+        <a class="btn primary" data-download href="https://github.com/Dennis5882/midas-nx-mcp/releases/latest">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 1.06-1.06l2.22 2.22V1.75A.75.75 0 0 1 8 1ZM2.75 12.5a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H2.75Z"/></svg>
+          Download for Claude Desktop
+        </a>
+        <a class="btn ghost" href="https://github.com/Dennis5882/midas-nx-mcp#readme">Full documentation</a>
+        <span class="ver" id="version">Latest release</span>
+      </div>
+      <span class="badge">Built by a MIDAS IT team member · alpha · not an official product</span>
+      <div class="ai-tip">
+        <strong>Want your AI to set it up?</strong> Paste this address into the chat:
+        <code id="llms-url">https://dennis5882.github.io/midas-nx-mcp/en/llms.txt</code>
+        <button class="copy-inline" data-copy="llms-url">Copy</button>
+        <span>It sums up the install steps, the tools and the rules to follow, written for AI agents.</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="stats">
+    <div class="wrap">
+      <div class="stat"><b>13</b><p>tools</p></div>
+      <div class="stat"><b>9</b><p>read-only tools</p></div>
+      <div class="stat"><b>4</b><p>tools that change, after you confirm</p></div>
+      <div class="stat"><b>2</b><p>products: Gen NX · Civil NX</p></div>
+    </div>
+  </div>
+
+  <section class="block" id="features">
+    <div class="wrap">
+      <div class="head center">
+        <div class="eyebrow">Features</div>
+        <h2>What it does</h2>
+        <p>Keep the model open and ask; the AI picks the right tool and reads straight from NX.</p>
+      </div>
+      <div class="grid">
+        <div class="card"><span class="tag">RD</span><h3>Read the model</h3><p>Ask "Summarise the Gen model" for counts of nodes, elements, materials, sections and load cases, and the unit system. Table schemas and records too.</p><div class="meta">model_summary · read_table</div></div>
+        <div class="card"><span class="tag">RS</span><h3>Analysis results</h3><p>"Show the DL reactions", "Beam forces for DL": result tables on request, and checks based on them.</p><div class="meta">result_table</div></div>
+        <div class="card"><span class="tag">VW</span><h3>Screen capture</h3><p>"Show me the model" returns a picture of the NX window.</p><div class="meta">capture_view</div></div>
+        <div class="card"><span class="tag">WR</span><h3>Confirmed changes</h3><p>Add nodes, edit or delete records, run the analysis, save a copy. Every change is previewed first and applied only after you agree.</p><div class="meta">write_records · run_analysis</div></div>
+      </div>
+
+      <h3>How it works</h3>
+      <div class="flow">
+        <span class="node">AI app <span class="sub">(Claude Desktop, ...)</span></span><span class="arrow">→</span>
+        <span class="node"><b>midas-nx-mcp</b> <span class="sub">(your PC)</span></span><span class="arrow">→</span>
+        <span class="node">Gen NX / Civil NX <span class="sub">(same PC)</span></span>
+      </div>
+      <p class="sub" style="margin-top:12px">Everything runs on your PC. The AI app starts and stops the server; you never run it yourself.</p>
+    </div>
+  </section>
+
+  <section class="block" id="requirements">
+    <div class="wrap">
+      <div class="head">
+        <div class="eyebrow">Requirements</div>
+        <h2>What you need</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <tr><th>OS</th><td>Windows</td></tr>
+          <tr><th>NX</th><td>Gen NX or Civil NX running on the <strong>same PC</strong>, with its Open API connected (<code>Apps &gt; API Settings</code>)</td></tr>
+          <tr><th>MAPI key</th><td>One per product, shown under <code>Apps &gt; API Settings</code> in each program. Use <strong>your own PC's key</strong>.</td></tr>
+          <tr><th>AI app</th><td>Claude Desktop, latest version (recommended). Claude Code, Codex and other MCP clients work too.</td></tr>
+        </table>
+      </div>
+      <div class="note">
+        <p><strong>Do not swap the Gen and Civil keys.</strong> The other product's key still reports "connected", but every real call fails. Do not share your key with anyone.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="install">
+    <div class="wrap">
+      <div class="head">
+        <div class="eyebrow">Install</div>
+        <h2>Install: Claude Desktop</h2>
+        <p>No Python or uv to install.</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <strong>Download</strong>
+          <p>Get <code>midas-nx-mcp-&lt;version&gt;.mcpb</code> from the <a data-download href="https://github.com/Dennis5882/midas-nx-mcp/releases/latest">latest release</a>.</p>
+        </li>
+        <li>
+          <strong>Open it</strong>
+          <p>Double-click the file, or drag it onto <code>Settings &gt; Extensions</code> in Claude Desktop.</p>
+        </li>
+        <li>
+          <strong>Enter your keys</strong>
+          <p>Enter the Gen and Civil keys; leave the one you do not use empty. The output folder (default <code>C:\temp</code>, which must exist) and the analysis timeout are set here too. Change them later under <code>Settings &gt; Extensions</code>.</p>
+        </li>
+        <li>
+          <strong>Check the connection</strong>
+          <p>Open a model in NX and ask Claude <em>"Check the Gen connection"</em>. If it reports connected and the program name, you are done.</p>
+        </li>
+      </ol>
+
+      <h3>Other apps / by hand</h3>
+      <p class="sub">These need <a href="https://docs.astral.sh/uv/">uv</a>. Install it once from PowerShell:</p>
+      <div class="code"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</code></pre></div>
+
+      <div style="margin-top:24px">
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="t-json">Claude Desktop (config file)</button>
+          <button role="tab" aria-selected="false" data-tab="t-code">Claude Code</button>
+          <button role="tab" aria-selected="false" data-tab="t-codex">Codex</button>
+        </div>
+        <div class="panel" id="t-json">
+          <p class="sub">Open <code>claude_desktop_config.json</code> with <code>Settings &gt; Developer &gt; Edit Config</code>, add the server under <code>mcpServers</code>, then quit Claude Desktop completely (tray icon too) and start it again.</p>
+          <div class="code"><pre><code>{
+  "mcpServers": {
+    "midas-nx": {
+      "command": "uvx",
+      "args": ["midas-nx-mcp@latest"],
+      "env": {
+        "MIDAS_MAPI_KEY_GEN": "your Gen NX key",
+        "MIDAS_MAPI_KEY_CIVIL": "your Civil NX key"
+      }
+    }
+  }
+}</code></pre></div>
+        </div>
+        <div class="panel" id="t-code" hidden>
+          <div class="code"><pre><code>claude mcp add midas-nx -e MIDAS_MAPI_KEY_GEN=your-gen-key -e MIDAS_MAPI_KEY_CIVIL=your-civil-key -- uvx midas-nx-mcp@latest</code></pre></div>
+        </div>
+        <div class="panel" id="t-codex" hidden>
+          <p class="sub">Add this to <code>~/.codex/config.toml</code>, or add a STDIO server in the settings screen.</p>
+          <div class="code"><pre><code>[mcp_servers.midas-nx]
+command = "uvx"
+args = ["midas-nx-mcp@latest"]
+env = { MIDAS_MAPI_KEY_GEN = "your Gen NX key", MIDAS_MAPI_KEY_CIVIL = "your Civil NX key" }</code></pre></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="use">
+    <div class="wrap">
+      <div class="head">
+        <div class="eyebrow">Usage</div>
+        <h2>What to ask</h2>
+        <p>Say <strong>"Gen"</strong> or <strong>"Civil"</strong> in your request, so the AI uses the right key.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <tr><th>To</th><th>Ask</th></tr>
+          <tr><td>Get an overview</td><td>"Summarise the Civil model"</td></tr>
+          <tr><td>Find a table / its fields</td><td>"Which load tables does Gen have?", "What fields does the SECT table have?"</td></tr>
+          <tr><td>Read records</td><td>"Show the coordinates of nodes 1 to 10", "List the sections in use"</td></tr>
+          <tr><td>Design settings</td><td>"Which design code is set?"</td></tr>
+          <tr><td>Current selection</td><td>"What is selected in NX right now?"</td></tr>
+          <tr><td>Analysis results</td><td>"Show the DL reactions", "Show DL and LL displacements"</td></tr>
+          <tr><td>Check</td><td>"Do the reactions add up to the self-weight?"</td></tr>
+          <tr><td>See it</td><td>"Show me the model"</td></tr>
+        </table>
+      </div>
+      <p class="sub" style="margin-top:14px">At most 200 rows come back at once. For more, ask for a range: "the next 200", "only 1001 to 1100".</p>
+    </div>
+  </section>
+
+  <section class="block" id="safety">
+    <div class="wrap">
+      <div class="two">
+        <div>
+          <div class="head">
+            <div class="eyebrow">Safety</div>
+            <h2>Preview → confirm → apply</h2>
+            <p>Anything that changes the model or its file (analysis, save a copy, create / update / delete records) takes two steps. The AI shows what will change first and applies it only after you say "go ahead". If the model changed in between, it is refused; afterwards the table is read back and reported.</p>
+          </div>
+          <ul class="plain">
+            <li data-n="01"><strong>Any change discards the analysis results.</strong> Run the analysis again before reading results.</li>
+            <li data-n="02"><strong>NX saves over the open file before it analyses.</strong> To keep the original, ask for "save a copy" first.</li>
+            <li data-n="03">A document that was never saved cannot be analysed. Save a copy first to give it a file.</li>
+            <li data-n="04">Copies go to <code>C:\temp</code> under a generated name, and NX then works on the copy.</li>
+            <li data-n="05">New / open / import document and emptying a table are never offered: they are too risky.</li>
+          </ul>
+        </div>
+        <div class="chat-panel">
+          <div class="chat">
+            <div class="bubble user">Add a node at (4, 3, 0) in Gen</div>
+            <div class="bubble ai"><b>Preview</b> · NODE 13 will be created. Analysis results will be discarded. Go ahead?</div>
+            <div class="bubble user">Go ahead</div>
+            <div class="bubble ai"><b>Applied</b> · NODE 13 added (read back to confirm)</div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        <p><strong>Try it on a copy of an important model first.</strong> This alpha has been verified on small test models, not yet on large production models.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="tools">
+    <div class="wrap">
+      <div class="head">
+        <div class="eyebrow">Tools</div>
+        <h2>Tools</h2>
+        <p>The AI picks them; no need to remember the names. Every tool takes <code>product</code> (<code>gen</code> or <code>civil</code>).</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <tr><th>Tool</th><th>Kind</th><th>What it does</th></tr>
+          <tr><td><code>check_connection</code></td><td><span class="kind read">read</span></td><td>Connected or not, program name</td></tr>
+          <tr><td><code>list_tables</code></td><td><span class="kind read">read</span></td><td>The <code>/db</code> and <code>/DESIGN</code> tables (searchable)</td></tr>
+          <tr><td><code>describe_table</code></td><td><span class="kind read">read</span></td><td>NX's own field schema for a table</td></tr>
+          <tr><td><code>read_table</code></td><td><span class="kind read">read</span></td><td>Records, by id if given, up to 200 rows</td></tr>
+          <tr><td><code>model_summary</code></td><td><span class="kind read">read</span></td><td>Counts of the main tables, unit system</td></tr>
+          <tr><td><code>read_model_info</code></td><td><span class="kind read">read</span></td><td>Project status, section properties, story check parameters (Gen), current selection</td></tr>
+          <tr><td><code>list_result_tables</code></td><td><span class="kind read">read</span></td><td>Result table types</td></tr>
+          <tr><td><code>result_table</code></td><td><span class="kind read">read</span></td><td>One result table (load cases, components, keys)</td></tr>
+          <tr><td><code>capture_view</code></td><td><span class="kind read">read</span></td><td>The NX window as a PNG</td></tr>
+          <tr><td><code>run_analysis</code></td><td><span class="kind write">change</span></td><td>Runs the analysis (NX saves the open file first)</td></tr>
+          <tr><td><code>save_copy</code></td><td><span class="kind write">change</span></td><td>Saves a copy to <code>C:\temp</code> under a generated name</td></tr>
+          <tr><td><code>write_records</code></td><td><span class="kind write">change</span></td><td>Creates or updates up to 50 records</td></tr>
+          <tr><td><code>delete_records</code></td><td><span class="kind write">change</span></td><td>Deletes up to 50 records by id</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="trouble">
+    <div class="wrap">
+      <div class="head">
+        <div class="eyebrow">Troubleshooting</div>
+        <h2>Troubleshooting</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <tr><th>Symptom</th><th>Check</th></tr>
+          <tr><td>Every call suddenly times out</td><td>Look for a dialog in NX and answer it <strong>in the NX window</strong>. Do not ask the AI to retry.</td></tr>
+          <tr><td>"... is not set"</td><td>That product's key is entered (<code>Settings &gt; Extensions</code>)</td></tr>
+          <tr><td>Connected, but reads fail</td><td>The Gen and Civil keys are not swapped, and NX's API is connected</td></tr>
+          <tr><td>"NX is not running"</td><td>Start NX and connect under <code>Apps &gt; API Settings</code></td></tr>
+          <tr><td>"no analysis result"</td><td>No analysis yet, or a later change discarded the results</td></tr>
+          <tr><td>Capture or save fails</td><td>The output folder (<code>C:\temp</code>) exists</td></tr>
+          <tr><td>New version not picked up</td><td>.mcpb: install the new file. By hand: <code>uv cache clean</code>, then restart the app</td></tr>
+        </table>
+      </div>
+      <p class="sub" style="margin-top:14px">Other problems or ideas: <a href="https://github.com/Dennis5882/midas-nx-mcp/issues">GitHub Issues</a>.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="cta-band">
+        <h2>Try it now</h2>
+        <p>Double-click one file, enter your key, and you are set.</p>
+        <div class="cta">
+          <a class="btn light" data-download href="https://github.com/Dennis5882/midas-nx-mcp/releases/latest">Download for Claude Desktop</a>
+          <a class="btn ghost" href="llms.txt">Summary for AI (llms.txt)</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#"><img class="logo" src="../assets/img/midas-logo-white.png" alt="MIDAS" width="81" height="24"><span class="brand-name">nx-mcp</span></a>
+    <p>MIT License · A personal project built by a MIDAS IT team member; not an official MIDAS IT product. MIDAS, Gen NX and Civil NX are trademarks of their respective owners.</p>
+    <p>Author: Dennis · <a href="mailto:sjj0507@midasit.com">sjj0507@midasit.com</a> · <a href="https://www.linkedin.com/in/dennis58">LinkedIn</a></p>
+    <p>
+      <a href="https://github.com/Dennis5882/midas-nx-mcp">Source</a> ·
+      <a href="https://github.com/Dennis5882/midas-nx-mcp#readme">README</a> ·
+      <a href="https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md">Korean guide</a> ·
+      <a href="llms.txt">llms.txt (for AI)</a> ·
+      <a href="https://pypi.org/project/midas-nx-mcp/">PyPI</a> ·
+      <a href="https://github.com/Dennis5882/MIDAS-API-NX-SDK">SDK (midas-nx)</a>
+    </p>
+  </div>
+</footer>
+
+<script src="../assets/page.js"></script>
+</body>
+</html>

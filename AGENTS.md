@@ -66,7 +66,8 @@ README.
   fails any test that changes the model unless it set `writes_allowed`, and
   every test that sends a whole-table DELETE or `/doc/NEW|OPEN|IMPORT*`.
 - `site/` — the public page (GitHub Pages, `pages.yml` on push to main):
-  `index.html` for people, `llms.txt` for AI agents. Both repeat the README
+  `index.html` for people, `llms.txt` for AI agents, in Korean at the root
+  and in English under `en/`, with `assets/` shared. They repeat the README
   and the Korean guide; when a tool, setting or install step changes, update
   them too. Only `site/` is published.
 - `PLAN.md` — phases, what each tool may do, and what is still open.

@@ -1,8 +1,8 @@
 # midas-nx-mcp
 
-> 로컬 MCP 서버. Claude Desktop, Claude Code, Codex 같은 AI 앱이 같은 Windows PC에서 실행 중인 MIDAS Gen NX / Civil NX의 열린 모델을 MIDAS NX Open API로 읽고, 사용자가 확인한 변경만 적용하게 한다. 개인 프로젝트(알파)이며 MIDAS IT 공식 제품이 아니다. MIT 라이선스.
+> 로컬 MCP 서버. Claude Desktop, Claude Code, Codex 같은 AI 앱이 같은 Windows PC에서 실행 중인 MIDAS Gen NX / Civil NX의 열린 모델을 MIDAS NX Open API로 읽고, 사용자가 확인한 변경만 적용하게 한다. MIDAS IT 내부 구성원이 만든 개인 프로젝트(알파)이며, MIDAS IT 공식 제품은 아니다. MIT 라이선스.
 
-이 파일은 AI 에이전트가 사용자의 설치와 사용을 돕도록 쓴 요약이다. 사람용 페이지: https://dennis5882.github.io/midas-nx-mcp/
+이 파일은 AI 에이전트가 사용자의 설치와 사용을 돕도록 쓴 요약이다. 사람용 페이지: https://dennis5882.github.io/midas-nx-mcp/ (English: https://dennis5882.github.io/midas-nx-mcp/en/llms.txt)
 
 ## 핵심 사실
 
@@ -105,3 +105,7 @@ env = { MIDAS_MAPI_KEY_GEN = "<Gen NX key>", MIDAS_MAPI_KEY_CIVIL = "<Civil NX k
 - [PyPI](https://pypi.org/project/midas-nx-mcp/)
 - [기반 SDK midas-nx](https://github.com/Dennis5882/MIDAS-API-NX-SDK)
 - [이슈](https://github.com/Dennis5882/midas-nx-mcp/issues)
+
+## 제작자
+
+Dennis (MIDAS IT) · sjj0507@midasit.com · [LinkedIn](https://www.linkedin.com/in/dennis58)

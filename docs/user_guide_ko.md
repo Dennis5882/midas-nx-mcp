@@ -3,7 +3,7 @@
 Claude Desktop이나 Codex 같은 AI 앱에서 **지금 열려 있는 MIDAS Gen NX / Civil NX 모델**을
 말로 묻고, 필요하면 조심스럽게 고칠 수 있게 해 주는 로컬 MCP 서버입니다.
 
-> MIDAS IT 공식 제품이 아닌 개인 프로젝트입니다. 작은 테스트 모델에서 검증했고(알파),
+> MIDAS IT 내부 구성원이 만든 개인 프로젝트이며, MIDAS IT 공식 제품은 아닙니다. 작은 테스트 모델에서 검증했고(알파),
 > 대형 실무 모델에서는 아직 충분히 써 보지 않았습니다. 중요한 모델은 **사본으로** 시험하세요.
 
 ---
@@ -299,3 +299,4 @@ AI가 알아서 고르므로 이름을 외울 필요는 없습니다.
 - 소스와 이슈: https://github.com/Dennis5882/midas-nx-mcp
 - PyPI: https://pypi.org/project/midas-nx-mcp/
 - 기반 SDK: https://github.com/Dennis5882/MIDAS-API-NX-SDK
+- 제작자: Dennis (sjj0507@midasit.com, [LinkedIn](https://www.linkedin.com/in/dennis58))

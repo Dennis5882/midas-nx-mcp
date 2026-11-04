@@ -1,0 +1,111 @@
+# midas-nx-mcp
+
+> A local MCP server. It lets AI apps such as Claude Desktop, Claude Code and Codex read the model open in MIDAS Gen NX / Civil NX, running on the same Windows PC, through the MIDAS NX Open API, and apply only the changes the user confirms. A personal project (alpha) built by a MIDAS IT team member; not an official MIDAS IT product. MIT license.
+
+This file is a summary for AI agents helping a user install and use the server. Page for people: https://dennis5882.github.io/midas-nx-mcp/en/ (Korean: https://dennis5882.github.io/midas-nx-mcp/llms.txt)
+
+## Key facts
+
+- Transport: stdio. The AI app starts and stops the server; it is not a remote server.
+- Command: `uvx midas-nx-mcp@latest` (PyPI package `midas-nx-mcp`)
+- Claude Desktop bundle: `midas-nx-mcp-<version>.mcpb` from the latest GitHub release. Installs by double-click; no uv or Python needed.
+- MCP Registry name: `io.github.Dennis5882/midas-nx-mcp`
+- Requires: Windows, with Gen NX or Civil NX running on the same PC and its Open API connected (NX: `Apps > API Settings`).
+- Keys: one MAPI key per product (`MIDAS_MAPI_KEY_GEN`, `MIDAS_MAPI_KEY_CIVIL`). A wrong key still reports "connected", so make sure the user has not swapped them. Never print a key in the chat or a log.
+
+## Install (the order to guide the user through)
+
+1. Ask which AI app the user has.
+2. Claude Desktop: download the `.mcpb` from the latest release and double-click it. Enter the Gen / Civil keys; leave the unused product empty. Keys can be changed later under `Settings > Extensions`.
+3. Other apps: install uv (`powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`), then use one of the configurations below.
+4. Check: with a model open in NX, call `check_connection(product="gen")`.
+
+Claude Desktop config file (`Settings > Developer > Edit Config`, `claude_desktop_config.json`). After saving, quit the app completely (tray icon too) and start it again:
+
+```json
+{
+  "mcpServers": {
+    "midas-nx": {
+      "command": "uvx",
+      "args": ["midas-nx-mcp@latest"],
+      "env": {
+        "MIDAS_MAPI_KEY_GEN": "<Gen NX key>",
+        "MIDAS_MAPI_KEY_CIVIL": "<Civil NX key>"
+      }
+    }
+  }
+}
+```
+
+Claude Code:
+
+```bash
+claude mcp add midas-nx -e MIDAS_MAPI_KEY_GEN=<gen-key> -e MIDAS_MAPI_KEY_CIVIL=<civil-key> -- uvx midas-nx-mcp@latest
+```
+
+Codex (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.midas-nx]
+command = "uvx"
+args = ["midas-nx-mcp@latest"]
+env = { MIDAS_MAPI_KEY_GEN = "<Gen NX key>", MIDAS_MAPI_KEY_CIVIL = "<Civil NX key>" }
+```
+
+## Settings (environment variables)
+
+| variable | default | meaning |
+| --- | --- | --- |
+| MIDAS_MAPI_KEY_GEN | - | Gen NX key. Needed for product="gen" |
+| MIDAS_MAPI_KEY_CIVIL | - | Civil NX key. Needed for product="civil" |
+| MIDAS_TIMEOUT | 20 | seconds per call. Short on purpose, so an NX dialog is noticed quickly |
+| MIDAS_ANALYSIS_TIMEOUT | 300 | seconds for run_analysis |
+| MIDAS_SAVE_TIMEOUT | 120 | seconds for save_copy |
+| MIDAS_MAX_ROWS | 200 | most rows one call returns |
+| MIDAS_OUTPUT_DIR | C:/temp | where captures and copies are written. Must already exist |
+
+## Tools
+
+Every tool takes `product` ("gen" or "civil"). If the user has not said which, ask.
+
+Reading (nothing in the model changes):
+
+- check_connection(product): connected or not, program name
+- list_tables(product?, search?): the `/db` and `/DESIGN` tables
+- describe_table(product, table): NX's own field schema for a `/db` table
+- read_table(product, table, ids?, limit?): records, at most MIDAS_MAX_ROWS rows
+- model_summary(product): counts of the main tables and the unit system
+- read_model_info(product, what): project status, section properties, story check parameters (Gen only), current selection
+- list_result_tables(search?): the result table types result_table accepts
+- result_table(product, table_type, load_cases?, components?, keys?, limit?): an analysis result table
+- capture_view(product, width?, height?): the NX window as a PNG
+
+Changing (two steps):
+
+- run_analysis(product): runs the analysis. NX first saves over the open file. A document never saved is refused.
+- save_copy(product): Save As to a generated name in MIDAS_OUTPUT_DIR. NX then works on the copy.
+- write_records(product, table, records, mode): creates (create) or updates (update) `/db` or `/DESIGN` records, up to 50 at once
+- delete_records(product, table, ids): deletes records by id, up to 50 at once. Nodes used by elements are refused.
+
+## Rules for the agent
+
+1. Call a changing tool first without confirm_token to get a preview. Show the preview to the user, and only after the user explicitly agrees, call it again with the same arguments and that confirm_token. If the model changed in between, it is refused.
+2. Any change discards NX's analysis results. Run the analysis again before reading results.
+3. If the original file must be kept, call save_copy before run_analysis.
+4. On a timeout or `waiting_for_nx_dialog`, do not retry. Tell the user to answer the dialog in the NX window.
+5. Pass on NX's messages from the tools as they are ("no analysis result", "The project is not opened", ...). Do not report success just because nothing raised an error.
+6. Not offered: new document, open document, import, emptying a table, running design checks, saving outside MIDAS_OUTPUT_DIR. Do not work around these.
+
+## Links
+
+- [Page for people](https://dennis5882.github.io/midas-nx-mcp/en/)
+- [README](https://github.com/Dennis5882/midas-nx-mcp#readme): the full English documentation
+- [Korean user guide](https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md)
+- [Latest release and .mcpb](https://github.com/Dennis5882/midas-nx-mcp/releases/latest)
+- [PyPI](https://pypi.org/project/midas-nx-mcp/)
+- [SDK midas-nx](https://github.com/Dennis5882/MIDAS-API-NX-SDK)
+- [Issues](https://github.com/Dennis5882/midas-nx-mcp/issues)
+
+## Author
+
+Dennis (MIDAS IT) · sjj0507@midasit.com · [LinkedIn](https://www.linkedin.com/in/dennis58)

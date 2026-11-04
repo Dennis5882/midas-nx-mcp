@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>midas-nx-mcp</title>
 <meta name="description" content="Claude Desktop 등 AI 앱에서 열려 있는 MIDAS Gen NX / Civil NX 모델을 말로 묻고, 확인을 거쳐 고치는 로컬 MCP 서버. 설치와 사용 방법.">
+<meta name="theme-color" content="#0A1A2F">
 <link rel="canonical" href="https://dennis5882.github.io/midas-nx-mcp/">
+<link rel="alternate" hreflang="ko" href="https://dennis5882.github.io/midas-nx-mcp/">
+<link rel="alternate" hreflang="en" href="https://dennis5882.github.io/midas-nx-mcp/en/">
+<link rel="alternate" hreflang="x-default" href="https://dennis5882.github.io/midas-nx-mcp/">
 <link rel="alternate" type="text/markdown" title="AI용 요약 (llms.txt)" href="llms.txt">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "midas-nx-mcp",
+  "inLanguage": "ko",
   "description": "A local MCP server that lets AI apps read the model open in MIDAS Gen NX or Civil NX and change it only after the user confirms a preview.",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Windows",
@@ -25,245 +30,100 @@
   "author": {"@type": "Person", "name": "Dennis5882", "url": "https://github.com/Dennis5882"}
 }
 </script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #f7f8fa;
-    --surface: #ffffff;
-    --surface-2: #f0f2f5;
-    --text: #1b1f24;
-    --muted: #59636e;
-    --border: #dde1e6;
-    --accent: #1f6feb;
-    --accent-text: #ffffff;
-    --accent-soft: #e8f0fe;
-    --warn-soft: #fff6e0;
-    --warn-border: #f0c96b;
-    --ok: #1a7f37;
-    --code-bg: #f3f4f6;
-    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #0f1216;
-      --surface: #171b21;
-      --surface-2: #1e232a;
-      --text: #e6e9ed;
-      --muted: #9aa4ae;
-      --border: #2b3139;
-      --accent: #4c8dff;
-      --accent-text: #0b0e12;
-      --accent-soft: #19263b;
-      --warn-soft: #2a2414;
-      --warn-border: #7a6122;
-      --ok: #4ac26b;
-      --code-bg: #12161b;
-      --shadow: none;
-    }
-  }
-  :root[data-theme="dark"] {
-    --bg: #0f1216;
-    --surface: #171b21;
-    --surface-2: #1e232a;
-    --text: #e6e9ed;
-    --muted: #9aa4ae;
-    --border: #2b3139;
-    --accent: #4c8dff;
-    --accent-text: #0b0e12;
-    --accent-soft: #19263b;
-    --warn-soft: #2a2414;
-    --warn-border: #7a6122;
-    --ok: #4ac26b;
-    --code-bg: #12161b;
-    --shadow: none;
-  }
-
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 16px/1.7 "Noto Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
-    word-break: keep-all;
-    overflow-wrap: anywhere;
-  }
-  a { color: var(--accent); }
-  code, pre { font-family: "JetBrains Mono", Consolas, monospace; font-size: .88em; }
-  :not(pre) > code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px; padding: .05em .35em; }
-
-  .wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
-
-  header.top { border-bottom: 1px solid var(--border); background: var(--surface); }
-  header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 56px; }
-  .brand { font-weight: 700; font-family: "JetBrains Mono", monospace; color: var(--text); text-decoration: none; }
-  nav.links { display: flex; gap: 16px; font-size: .9rem; }
-  nav.links a { color: var(--muted); text-decoration: none; }
-  nav.links a:hover { color: var(--text); }
-  @media (max-width: 560px) { nav.links { gap: 12px; } nav.links .hide-sm { display: none; } }
-
-  .hero { padding-top: 56px; padding-bottom: 40px; }
-  .hero h1 { font-size: clamp(1.7rem, 4.5vw, 2.4rem); line-height: 1.3; margin: 0 0 14px; }
-  .hero p.lead { font-size: 1.08rem; color: var(--muted); margin: 0 0 28px; max-width: 640px; }
-  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 11px 18px; border-radius: 9px; font-weight: 500; text-decoration: none;
-    border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-  .btn:hover { filter: brightness(1.05); }
-  .ver { font-size: .88rem; color: var(--muted); }
-  .badge {
-    display: inline-block; font-size: .78rem; padding: 2px 9px; border-radius: 99px;
-    background: var(--warn-soft); border: 1px solid var(--warn-border); margin-bottom: 14px;
-  }
-
-  section { padding: 36px 0; border-top: 1px solid var(--border); }
-  section h2 { font-size: 1.4rem; margin: 0 0 18px; }
-  section h3 { font-size: 1.05rem; margin: 26px 0 10px; }
-  p { margin: 0 0 14px; }
-
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: var(--shadow); }
-  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
-  .grid .card h3 { margin: 0 0 6px; font-size: 1rem; }
-  .grid .card p { margin: 0; color: var(--muted); font-size: .94rem; }
-
-  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .92rem; }
-  .flow span.node { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
-  .flow span.arrow { color: var(--muted); }
-
-  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 14px; }
-  ol.steps > li { counter-increment: s; position: relative; padding: 18px 20px 18px 64px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
-  ol.steps > li::before {
-    content: counter(s); position: absolute; left: 18px; top: 18px;
-    width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent);
-    font-weight: 700; display: grid; place-items: center;
-  }
-  ol.steps strong { display: block; margin-bottom: 2px; }
-  ol.steps p { margin: 0; color: var(--muted); }
-
-  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-  table { border-collapse: collapse; width: 100%; font-size: .93rem; }
-  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  th { background: var(--surface-2); font-weight: 500; white-space: nowrap; }
-  tr:last-child td { border-bottom: 0; }
-
-  .note { border-left: 3px solid var(--warn-border); background: var(--warn-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; }
-  .note p:last-child { margin: 0; }
-
-  .chat { display: grid; gap: 8px; max-width: 560px; }
-  .bubble { padding: 10px 14px; border-radius: 12px; font-size: .94rem; }
-  .bubble.user { justify-self: end; background: var(--accent); color: var(--accent-text); border-bottom-right-radius: 3px; }
-  .bubble.ai { justify-self: start; background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 3px; }
-
-  .code { position: relative; }
-  .code pre { margin: 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; line-height: 1.55; }
-  .copy {
-    position: absolute; top: 8px; right: 8px; font: 500 .78rem "Noto Sans KR", sans-serif;
-    border: 1px solid var(--border); background: var(--surface); color: var(--muted);
-    border-radius: 6px; padding: 3px 9px; cursor: pointer;
-  }
-  .copy:hover { color: var(--text); }
-
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; overflow-x: auto; }
-  .tabs button {
-    font: inherit; font-size: .92rem; background: none; border: 0; border-bottom: 2px solid transparent;
-    padding: 8px 12px; color: var(--muted); cursor: pointer; white-space: nowrap;
-  }
-  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 500; }
-  .panel[hidden] { display: none; }
-
-  .ai-tip {
-    margin-top: 28px; padding: 14px 16px; border: 1px dashed var(--border); border-radius: 10px;
-    background: var(--surface); font-size: .92rem; color: var(--muted);
-    display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
-  }
-  .ai-tip strong { color: var(--text); }
-  .ai-tip code { min-width: 0; max-width: 100%; word-break: break-all; }
-  .ai-tip span { flex-basis: 100%; }
-  .copy-inline {
-    font: 500 .78rem "Noto Sans KR", sans-serif; border: 1px solid var(--border); background: var(--surface-2);
-    color: var(--muted); border-radius: 6px; padding: 2px 9px; cursor: pointer;
-  }
-  .kind { font-size: .78rem; padding: 1px 8px; border-radius: 99px; white-space: nowrap; }
-  .kind.read { background: var(--accent-soft); color: var(--accent); }
-  .kind.write { background: var(--warn-soft); border: 1px solid var(--warn-border); }
-
-  ul.plain { margin: 0 0 14px; padding-left: 20px; }
-  ul.plain li { margin-bottom: 6px; }
-
-  footer { border-top: 1px solid var(--border); padding: 28px 0 48px; color: var(--muted); font-size: .88rem; }
-  footer a { color: var(--muted); }
-</style>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="#">midas-nx-mcp</a>
-    <nav class="links">
-      <a href="#install">설치</a>
-      <a href="#use">사용법</a>
-      <a class="hide-sm" href="#safety">안전</a>
-      <a class="hide-sm" href="#tools">도구</a>
-      <a class="hide-sm" href="#trouble">문제 해결</a>
-      <a href="https://github.com/Dennis5882/midas-nx-mcp">GitHub</a>
-    </nav>
+    <a class="brand" href="#"><picture><source srcset="assets/img/midas-logo-white.png" media="(prefers-color-scheme: dark)"><img class="logo" src="assets/img/midas-logo-black.png" alt="MIDAS" width="81" height="24"></picture><span class="brand-name">nx-mcp</span></a>
+    <div class="top-right">
+      <nav class="links">
+        <a href="#install">설치</a>
+        <a href="#use">사용법</a>
+        <a class="hide-sm" href="#safety">안전</a>
+        <a class="hide-sm" href="#tools">도구</a>
+        <a class="hide-sm" href="#trouble">문제 해결</a>
+        <a class="hide-sm" href="https://github.com/Dennis5882/midas-nx-mcp">GitHub</a>
+      </nav>
+      <div class="lang" aria-label="언어 / Language">
+        <a href="./" hreflang="ko" lang="ko" aria-current="true">한국어</a>
+        <a href="en/" hreflang="en" lang="en">EN</a>
+      </div>
+    </div>
   </div>
 </header>
 
 <main>
-  <div class="wrap hero">
-    <span class="badge">개인 프로젝트 · 알파 · MIDAS IT 공식 제품이 아닙니다</span>
-    <h1>AI에게 MIDAS NX 모델을<br>말로 물어보세요</h1>
-    <p class="lead">
-      Claude Desktop 같은 AI 앱이 지금 열려 있는 <strong>MIDAS Gen NX</strong> / <strong>Civil NX</strong>
-      모델을 읽고, 해석 결과를 보여 주고, 사용자가 확인한 변경만 적용하게 해 주는 로컬 MCP 서버입니다.
-    </p>
-    <div class="cta">
-      <a class="btn primary" id="download" href="https://github.com/Dennis5882/midas-nx-mcp/releases/latest">
-        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 1.06-1.06l2.22 2.22V1.75A.75.75 0 0 1 8 1ZM2.75 12.5a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H2.75Z"/></svg>
-        Claude Desktop용 다운로드 (.mcpb)
-      </a>
-      <a class="btn" href="https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md">자세한 설명서</a>
-      <span class="ver" id="version">최신 릴리스</span>
+  <section class="hero">
+    <div class="wrap">
+      <div class="eyebrow">MCP Server for MIDAS NX</div>
+      <h1>AI에게 MIDAS NX 모델을 <span class="hl">말로 물어보세요.</span></h1>
+      <p class="lead">
+        Claude Desktop 같은 AI 앱이 지금 열려 있는 <strong>Gen NX</strong> / <strong>Civil NX</strong> 모델을 읽고,
+        해석 결과를 보여 주고, 사용자가 확인한 변경만 적용하게 해 주는 로컬 MCP 서버입니다.
+      </p>
+      <div class="cta">
+        <a class="btn primary" data-download href="https://github.com/Dennis5882/midas-nx-mcp/releases/latest">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 1a.75.75 0 0 1 .75.75v6.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 0 1 1.06-1.06l2.22 2.22V1.75A.75.75 0 0 1 8 1ZM2.75 12.5a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H2.75Z"/></svg>
+          Claude Desktop용 다운로드
+        </a>
+        <a class="btn ghost" href="https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md">자세한 설명서</a>
+        <span class="ver" id="version">최신 릴리스</span>
+      </div>
+      <span class="badge">MIDAS IT 구성원이 만든 개인 프로젝트 · 알파 · 공식 제품이 아닙니다</span>
+      <div class="ai-tip">
+        <strong>AI에게 설치를 맡기려면</strong> 이 주소를 채팅에 붙여 넣으세요:
+        <code id="llms-url">https://dennis5882.github.io/midas-nx-mcp/llms.txt</code>
+        <button class="copy-inline" data-copy="llms-url">복사</button>
+        <span>설치 방법, 도구, 지켜야 할 규칙을 AI가 읽기 좋게 정리한 파일입니다.</span>
+      </div>
     </div>
-    <div class="ai-tip">
-      <strong>AI에게 설치를 맡기려면</strong> 이 주소를 채팅에 붙여 넣으세요:
-      <code id="llms-url">https://dennis5882.github.io/midas-nx-mcp/llms.txt</code>
-      <button class="copy-inline" data-copy="llms-url">복사</button>
-      <span>설치 방법, 도구, 지켜야 할 규칙을 AI가 읽기 좋게 정리한 파일입니다.</span>
+  </section>
+
+  <div class="stats">
+    <div class="wrap">
+      <div class="stat"><b>13<small>개</small></b><p>도구</p></div>
+      <div class="stat"><b>9<small>개</small></b><p>읽기 전용 도구</p></div>
+      <div class="stat"><b>4<small>개</small></b><p>확인 후 변경 도구</p></div>
+      <div class="stat"><b>2<small>종</small></b><p>Gen NX · Civil NX</p></div>
     </div>
   </div>
 
-  <section>
+  <section class="block" id="features">
     <div class="wrap">
-      <h2>무엇을 할 수 있나</h2>
+      <div class="head center">
+        <div class="eyebrow">Features</div>
+        <h2>무엇을 할 수 있나</h2>
+        <p>모델을 열어 둔 채로 AI에게 물어보면, AI가 알맞은 도구를 골라 NX에서 직접 읽어 옵니다.</p>
+      </div>
       <div class="grid">
-        <div class="card"><h3>모델 읽기</h3><p>"Gen 모델 요약해줘"라고 하면 절점·요소·재료·단면·하중 케이스 개수와 단위계를 알려 줍니다. 테이블 구조와 기록도 볼 수 있습니다.</p></div>
-        <div class="card"><h3>해석 결과</h3><p>"DL 반력 보여줘", "보 부재력 DL 기준으로"처럼 결과 테이블을 조회합니다. 결과를 근거로 검토도 시킬 수 있습니다.</p></div>
-        <div class="card"><h3>화면 캡처</h3><p>"모델 화면 보여줘"라고 하면 NX 창을 그림으로 받아 봅니다.</p></div>
-        <div class="card"><h3>확인 후 변경</h3><p>절점 추가, 기록 수정·삭제, 해석 실행, 사본 저장. 모든 변경은 미리보기를 먼저 보여 주고, 사용자가 확인해야만 적용됩니다.</p></div>
+        <div class="card"><span class="tag">RD</span><h3>모델 읽기</h3><p>"Gen 모델 요약해줘"라고 하면 절점·요소·재료·단면·하중 케이스 개수와 단위계를 알려 줍니다. 테이블 구조와 기록도 볼 수 있습니다.</p><div class="meta">model_summary · read_table</div></div>
+        <div class="card"><span class="tag">RS</span><h3>해석 결과</h3><p>"DL 반력 보여줘", "보 부재력 DL 기준으로"처럼 결과 테이블을 조회합니다. 결과를 근거로 검토도 시킬 수 있습니다.</p><div class="meta">result_table</div></div>
+        <div class="card"><span class="tag">VW</span><h3>화면 캡처</h3><p>"모델 화면 보여줘"라고 하면 NX 창을 그림으로 받아 봅니다.</p><div class="meta">capture_view</div></div>
+        <div class="card"><span class="tag">WR</span><h3>확인 후 변경</h3><p>절점 추가, 기록 수정·삭제, 해석 실행, 사본 저장. 모든 변경은 미리보기를 먼저 보여 주고, 사용자가 확인해야만 적용됩니다.</p><div class="meta">write_records · run_analysis</div></div>
       </div>
 
       <h3>동작 방식</h3>
       <div class="flow">
-        <span class="node">AI 앱 (Claude Desktop 등)</span><span class="arrow">→</span>
-        <span class="node">midas-nx-mcp (내 PC)</span><span class="arrow">→</span>
-        <span class="node">Gen NX / Civil NX (같은 PC)</span>
+        <span class="node">AI 앱 <span class="sub">(Claude Desktop 등)</span></span><span class="arrow">→</span>
+        <span class="node"><b>midas-nx-mcp</b> <span class="sub">(내 PC)</span></span><span class="arrow">→</span>
+        <span class="node">Gen NX / Civil NX <span class="sub">(같은 PC)</span></span>
       </div>
-      <p style="margin-top:12px;color:var(--muted);font-size:.94rem">
-        모든 것이 내 PC 안에서 실행됩니다. 서버는 AI 앱이 켜고 끄므로 따로 실행할 필요가 없습니다.
-      </p>
+      <p class="sub" style="margin-top:12px">모든 것이 내 PC 안에서 실행됩니다. 서버는 AI 앱이 켜고 끄므로 따로 실행할 필요가 없습니다.</p>
     </div>
   </section>
 
-  <section>
+  <section class="block" id="requirements">
     <div class="wrap">
-      <h2>준비물</h2>
+      <div class="head">
+        <div class="eyebrow">Requirements</div>
+        <h2>준비물</h2>
+      </div>
       <div class="table-wrap">
         <table>
           <tr><th>OS</th><td>Windows</td></tr>
@@ -278,17 +138,21 @@
     </div>
   </section>
 
-  <section id="install">
+  <section class="block" id="install">
     <div class="wrap">
-      <h2>설치: Claude Desktop</h2>
+      <div class="head">
+        <div class="eyebrow">Install</div>
+        <h2>설치: Claude Desktop</h2>
+        <p>Python이나 uv를 따로 설치할 필요가 없습니다.</p>
+      </div>
       <ol class="steps">
         <li>
           <strong>설치 파일 내려받기</strong>
-          <p><a id="download2" href="https://github.com/Dennis5882/midas-nx-mcp/releases/latest">최신 릴리스</a>에서 <code>midas-nx-mcp-&lt;버전&gt;.mcpb</code>를 받습니다.</p>
+          <p><a data-download href="https://github.com/Dennis5882/midas-nx-mcp/releases/latest">최신 릴리스</a>에서 <code>midas-nx-mcp-&lt;버전&gt;.mcpb</code>를 받습니다.</p>
         </li>
         <li>
           <strong>더블클릭으로 설치</strong>
-          <p>파일을 더블클릭하거나 Claude Desktop의 <code>설정 &gt; 확장(Extensions)</code>으로 끌어다 놓습니다. Python이나 uv를 따로 설치할 필요가 없습니다.</p>
+          <p>파일을 더블클릭하거나 Claude Desktop의 <code>설정 &gt; 확장(Extensions)</code>으로 끌어다 놓습니다.</p>
         </li>
         <li>
           <strong>키 입력</strong>
@@ -301,19 +165,17 @@
       </ol>
 
       <h3>다른 앱 / 수동 설치</h3>
-      <p style="color:var(--muted);font-size:.94rem">
-        아래 방법은 <a href="https://docs.astral.sh/uv/">uv</a>가 필요합니다. PowerShell에서 한 번 설치합니다:
-      </p>
+      <p class="sub">아래 방법은 <a href="https://docs.astral.sh/uv/">uv</a>가 필요합니다. PowerShell에서 한 번 설치합니다:</p>
       <div class="code"><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</code></pre></div>
 
-      <div style="margin-top:18px">
+      <div style="margin-top:24px">
         <div class="tabs" role="tablist">
           <button role="tab" aria-selected="true" data-tab="t-json">Claude Desktop (설정 파일)</button>
           <button role="tab" aria-selected="false" data-tab="t-code">Claude Code</button>
           <button role="tab" aria-selected="false" data-tab="t-codex">Codex</button>
         </div>
         <div class="panel" id="t-json">
-          <p style="font-size:.94rem"><code>설정 &gt; 개발자 &gt; 구성 편집</code>으로 <code>claude_desktop_config.json</code>을 열고 <code>mcpServers</code>에 추가한 뒤, Claude Desktop을 트레이까지 완전히 종료했다가 다시 켭니다.</p>
+          <p class="sub"><code>설정 &gt; 개발자 &gt; 구성 편집</code>으로 <code>claude_desktop_config.json</code>을 열고 <code>mcpServers</code>에 추가한 뒤, Claude Desktop을 트레이까지 완전히 종료했다가 다시 켭니다.</p>
           <div class="code"><pre><code>{
   "mcpServers": {
     "midas-nx": {
@@ -331,7 +193,7 @@
           <div class="code"><pre><code>claude mcp add midas-nx -e MIDAS_MAPI_KEY_GEN=Gen키 -e MIDAS_MAPI_KEY_CIVIL=Civil키 -- uvx midas-nx-mcp@latest</code></pre></div>
         </div>
         <div class="panel" id="t-codex" hidden>
-          <p style="font-size:.94rem"><code>~/.codex/config.toml</code>에 추가합니다. 설정 화면에서 STDIO 서버로 넣어도 됩니다.</p>
+          <p class="sub"><code>~/.codex/config.toml</code>에 추가합니다. 설정 화면에서 STDIO 서버로 넣어도 됩니다.</p>
           <div class="code"><pre><code>[mcp_servers.midas-nx]
 command = "uvx"
 args = ["midas-nx-mcp@latest"]
@@ -341,10 +203,13 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
     </div>
   </section>
 
-  <section id="use">
+  <section class="block" id="use">
     <div class="wrap">
-      <h2>이렇게 물어보세요</h2>
-      <p>문장에 <strong>"Gen"</strong> 또는 <strong>"Civil"</strong>을 넣어 주세요. 그래야 맞는 키로 접속합니다.</p>
+      <div class="head">
+        <div class="eyebrow">Usage</div>
+        <h2>이렇게 물어보세요</h2>
+        <p>문장에 <strong>"Gen"</strong> 또는 <strong>"Civil"</strong>을 넣어 주세요. 그래야 맞는 키로 접속합니다.</p>
+      </div>
       <div class="table-wrap">
         <table>
           <tr><th>하고 싶은 것</th><th>예시</th></tr>
@@ -358,39 +223,49 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
           <tr><td>화면</td><td>"모델 화면 보여줘"</td></tr>
         </table>
       </div>
-      <p style="margin-top:12px;color:var(--muted);font-size:.94rem">한 번에 최대 200행까지 옵니다. 더 필요하면 "다음 200개", "1001~1100번만"처럼 범위를 말하세요.</p>
+      <p class="sub" style="margin-top:14px">한 번에 최대 200행까지 옵니다. 더 필요하면 "다음 200개", "1001~1100번만"처럼 범위를 말하세요.</p>
     </div>
   </section>
 
-  <section id="safety">
+  <section class="block" id="safety">
     <div class="wrap">
-      <h2>모델 바꾸기: 미리보기 → 확인 → 적용</h2>
-      <p>모델이나 파일을 바꾸는 작업(해석, 사본 저장, 기록 생성·수정·삭제)은 항상 두 단계입니다. AI가 먼저 무엇이 바뀔지 보여 주고, 사용자가 "진행해"라고 해야 적용합니다. 그 사이에 모델이 바뀌면 거부되고, 적용한 뒤에는 다시 읽어서 결과를 보고합니다.</p>
-      <div class="chat">
-        <div class="bubble user">Gen에 (4, 3, 0) 위치에 절점 하나 추가해줘</div>
-        <div class="bubble ai">미리보기: NODE 13 생성 예정. 해석 결과가 지워집니다. 진행할까요?</div>
-        <div class="bubble user">진행해</div>
-        <div class="bubble ai">NODE 13 추가됨 (다시 읽어서 확인)</div>
+      <div class="two">
+        <div>
+          <div class="head">
+            <div class="eyebrow">Safety</div>
+            <h2>미리보기 → 확인 → 적용</h2>
+            <p>모델이나 파일을 바꾸는 작업(해석, 사본 저장, 기록 생성·수정·삭제)은 항상 두 단계입니다. AI가 먼저 무엇이 바뀔지 보여 주고, 사용자가 "진행해"라고 해야 적용합니다. 그 사이에 모델이 바뀌면 거부되고, 적용한 뒤에는 다시 읽어서 결과를 보고합니다.</p>
+          </div>
+          <ul class="plain">
+            <li data-n="01"><strong>변경하면 해석 결과가 지워집니다.</strong> 결과를 다시 보려면 해석부터 다시 돌리세요.</li>
+            <li data-n="02"><strong>해석 전에 NX가 현재 파일에 덮어 저장합니다.</strong> 원본을 지키려면 먼저 "사본 저장해줘"로 사본을 만드세요.</li>
+            <li data-n="03">한 번도 저장하지 않은 새 문서는 해석이 거부됩니다. 사본 저장으로 먼저 파일을 만드세요.</li>
+            <li data-n="04">사본은 <code>C:\temp</code>에 자동 이름으로 저장되고, 이후 작업은 사본에 들어갑니다.</li>
+            <li data-n="05">새 문서·열기·가져오기, 테이블 전체 삭제는 위험해서 아예 제공하지 않습니다.</li>
+          </ul>
+        </div>
+        <div class="chat-panel">
+          <div class="chat">
+            <div class="bubble user">Gen에 (4, 3, 0) 위치에 절점 하나 추가해줘</div>
+            <div class="bubble ai"><b>미리보기</b> · NODE 13 생성 예정. 해석 결과가 지워집니다. 진행할까요?</div>
+            <div class="bubble user">진행해</div>
+            <div class="bubble ai"><b>적용됨</b> · NODE 13 추가 (다시 읽어서 확인)</div>
+          </div>
+        </div>
       </div>
-
-      <h3>꼭 알아 둘 것</h3>
-      <ul class="plain">
-        <li><strong>변경하면 해석 결과가 지워집니다.</strong> 결과를 다시 보려면 해석부터 다시 돌리세요.</li>
-        <li><strong>해석 전에 NX가 현재 파일에 덮어 저장합니다.</strong> 원본을 지키려면 먼저 "사본 저장해줘"로 사본을 만드세요.</li>
-        <li>한 번도 저장하지 않은 새 문서는 해석이 거부됩니다. 사본 저장으로 먼저 파일을 만드세요.</li>
-        <li>사본은 <code>C:\temp</code>에 자동 이름으로 저장되고, 이후 작업은 사본에 들어갑니다.</li>
-        <li>새 문서·열기·가져오기, 테이블 전체 삭제는 위험해서 아예 제공하지 않습니다.</li>
-      </ul>
       <div class="note">
         <p><strong>중요한 모델은 사본에서 먼저 써 보세요.</strong> 작은 테스트 모델에서 검증한 알파 버전이고, 대형 실무 모델에서는 아직 충분히 써 보지 않았습니다.</p>
       </div>
     </div>
   </section>
 
-  <section id="tools">
+  <section class="block" id="tools">
     <div class="wrap">
-      <h2>도구 목록</h2>
-      <p style="color:var(--muted);font-size:.94rem">AI가 알아서 고르므로 외울 필요는 없습니다. 모든 도구는 <code>product</code>(<code>gen</code> 또는 <code>civil</code>)를 받습니다.</p>
+      <div class="head">
+        <div class="eyebrow">Tools</div>
+        <h2>도구 목록</h2>
+        <p>AI가 알아서 고르므로 외울 필요는 없습니다. 모든 도구는 <code>product</code>(<code>gen</code> 또는 <code>civil</code>)를 받습니다.</p>
+      </div>
       <div class="table-wrap">
         <table>
           <tr><th>도구</th><th>종류</th><th>내용</th></tr>
@@ -412,9 +287,12 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
     </div>
   </section>
 
-  <section id="trouble">
+  <section class="block" id="trouble">
     <div class="wrap">
-      <h2>문제 해결</h2>
+      <div class="head">
+        <div class="eyebrow">Troubleshooting</div>
+        <h2>문제 해결</h2>
+      </div>
       <div class="table-wrap">
         <table>
           <tr><th>증상</th><th>확인할 것</th></tr>
@@ -427,72 +305,40 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
           <tr><td>새 버전이 반영 안 됨</td><td>.mcpb는 새 파일로 다시 설치. 수동 설치는 <code>uv cache clean</code> 후 앱 재시작</td></tr>
         </table>
       </div>
-      <p style="margin-top:14px">그 밖의 문제나 제안은 <a href="https://github.com/Dennis5882/midas-nx-mcp/issues">GitHub Issues</a>에 남겨 주세요.</p>
+      <p class="sub" style="margin-top:14px">그 밖의 문제나 제안은 <a href="https://github.com/Dennis5882/midas-nx-mcp/issues">GitHub Issues</a>에 남겨 주세요.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="wrap">
+      <div class="cta-band">
+        <h2>지금 설치해 보세요</h2>
+        <p>파일 하나를 더블클릭하고 키를 넣으면 끝입니다.</p>
+        <div class="cta">
+          <a class="btn light" data-download href="https://github.com/Dennis5882/midas-nx-mcp/releases/latest">Claude Desktop용 다운로드</a>
+          <a class="btn ghost" href="llms.txt">AI용 요약 (llms.txt)</a>
+        </div>
+      </div>
     </div>
   </section>
 </main>
 
 <footer>
   <div class="wrap">
-    <p>midas-nx-mcp · MIT License · 개인 프로젝트이며 MIDAS IT의 공식 제품이 아닙니다. MIDAS, Gen NX, Civil NX는 각 소유자의 상표입니다.</p>
+    <a class="brand" href="#"><img class="logo" src="assets/img/midas-logo-white.png" alt="MIDAS" width="81" height="24"><span class="brand-name">nx-mcp</span></a>
+    <p>MIT License · MIDAS IT 내부 구성원이 만든 개인 프로젝트이며, MIDAS IT의 공식 제품이 아닙니다. MIDAS, Gen NX, Civil NX는 각 소유자의 상표입니다.</p>
+    <p>제작: Dennis · <a href="mailto:sjj0507@midasit.com">sjj0507@midasit.com</a> · <a href="https://www.linkedin.com/in/dennis58">LinkedIn</a></p>
     <p>
       <a href="https://github.com/Dennis5882/midas-nx-mcp">소스</a> ·
       <a href="https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md">설명서</a> ·
       <a href="llms.txt">llms.txt (AI용)</a> ·
+      <a href="https://github.com/Dennis5882/midas-nx-mcp#readme">README (English)</a> ·
       <a href="https://pypi.org/project/midas-nx-mcp/">PyPI</a> ·
       <a href="https://github.com/Dennis5882/MIDAS-API-NX-SDK">기반 SDK (midas-nx)</a>
     </p>
   </div>
 </footer>
 
-<script>
-  // The download buttons point at the releases page; swap in the newest .mcpb when GitHub answers.
-  fetch("https://api.github.com/repos/Dennis5882/midas-nx-mcp/releases/latest")
-    .then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (release) {
-      if (!release) return;
-      var asset = (release.assets || []).find(function (a) { return /\.mcpb$/.test(a.name); });
-      if (asset) {
-        document.getElementById("download").href = asset.browser_download_url;
-        document.getElementById("download2").href = asset.browser_download_url;
-      }
-      var date = (release.published_at || "").slice(0, 10);
-      document.getElementById("version").textContent = release.tag_name + (date ? " · " + date : "");
-    })
-    .catch(function () {});
-
-  document.querySelectorAll(".tabs button").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      document.querySelectorAll(".tabs button").forEach(function (b) {
-        b.setAttribute("aria-selected", String(b === btn));
-        document.getElementById(b.dataset.tab).hidden = b !== btn;
-      });
-    });
-  });
-
-  document.querySelectorAll(".code").forEach(function (block) {
-    var button = document.createElement("button");
-    button.className = "copy";
-    button.textContent = "복사";
-    button.addEventListener("click", function () {
-      var text = block.querySelector("code").textContent;
-      navigator.clipboard.writeText(text).then(function () {
-        button.textContent = "복사됨";
-        setTimeout(function () { button.textContent = "복사"; }, 1500);
-      });
-    });
-    block.appendChild(button);
-  });
-
-  document.querySelectorAll(".copy-inline").forEach(function (button) {
-    button.addEventListener("click", function () {
-      var text = document.getElementById(button.dataset.copy).textContent;
-      navigator.clipboard.writeText(text).then(function () {
-        button.textContent = "복사됨";
-        setTimeout(function () { button.textContent = "복사"; }, 1500);
-      });
-    });
-  });
-</script>
+<script src="assets/page.js"></script>
 </body>
 </html>

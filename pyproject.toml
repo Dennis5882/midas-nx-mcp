@@ -10,7 +10,7 @@ description = "Local MCP server for MIDAS Gen NX / Civil NX, built on midas-nx -
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-authors = [{ name = "Dennis" }]
+authors = [{ name = "Dennis", email = "sjj0507@midasit.com" }]
 keywords = [
   "mcp", "model-context-protocol", "claude", "midas", "midas-nx",
   "midas-gen-nx", "midas-civil-nx", "structural-engineering",
