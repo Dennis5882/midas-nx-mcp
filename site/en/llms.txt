@@ -89,6 +89,7 @@ Changing (two steps):
 - save_copy(product): Save As to a generated name in MIDAS_OUTPUT_DIR. NX then works on the copy.
 - write_records(product, table, records, mode): creates (create) or updates (update) `/db` or `/DESIGN` records, up to 50 at once. Elements naming a material, section or thickness that does not exist are refused (NX would store them unchecked).
 - delete_records(product, table, ids): deletes records by id, up to 50 at once. Nodes, materials, sections and thicknesses used by elements are refused. Deleting a load case makes NX delete its loads too (the preview warns).
+- apply_operations(product, operations): creates, updates and deletes across several tables under one preview and one token. operations is a list of {table, action: create|update|delete, records or ids}. The steps run in midas-nx's dependency order (the preview shows it), and the whole batch is checked first, with records created by earlier steps counted as existing. Each step is read back; on a failure it stops and returns done, failed and not_run (nothing is rolled back). No UNIT changes. At most 20 operations and 200 records.
 - generate_load_combinations(product, kind): Gen only. kind "concrete", "steel" or "src". NX builds the KDS combinations from the load cases and their types and appends them after the existing ones (can be hundreds). Run again on a model that has them, and it adds a second set.
 
 Prompts (read tools only): check_reactions(product, load_case), check_story_drift(allowable_ratio, load_cases), review_model(product).

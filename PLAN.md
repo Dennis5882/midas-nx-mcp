@@ -130,7 +130,7 @@ author's 6-story RC building (3137 nodes, 24 load cases), analysed by
   refuses on "no analysis result"; any other answer to that check is left
   to `/view/RESULTGRAPHIC` to report. Checked live: it refuses.
 
-Gemini CLI 0.66.0 (2026-11-04), from this checkout's venv: all 15 tools
+Gemini CLI 0.66.0 (2026-11-04), from this checkout's venv: all 15 tools (0.3.0)
 listed (named `mcp_midas-nx_<tool>`), `check_connection`, `model_summary`
 and `show_result` called, and the picture described correctly (it noticed
 the missing reactions above). The server is "Disabled" until the folder is
@@ -170,6 +170,7 @@ token it re-checks and applies only on a match, then reads back.
 | `save_copy` | `/doc/SAVEAS` to `MIDAS_OUTPUT_DIR/mcp-save-{product}-{time}` (`.mgbx` Gen, `.mcbz` Civil) only; NX window must be visible; success is the file on disk (Civil answers "command complete" for a save it did not write), and the window title is checked to name the copy (retried, with or without extension). Its own timeout (`MIDAS_SAVE_TIMEOUT`, 120 s), 30 s for the file to land, and the same new-window watch as `run_analysis`; a missing file is reported with "look at the NX window" and the windows open. Token covers the output folder |
 | `write_records` | `/db` and `/DESIGN`; create refuses existing ids, update missing ones (except record 1 of the /DESIGN singletons DCO, DCTL, LLRF, LMRR, SRDF, listed by hand, where the first PUT creates it; 0.2.0 exempted every table without POST, fixed in 0.2.1 after review); 50 records max; an ELEM naming a MATL, SECT (line elements) or THIK (plates, walls) that does not exist is refused, since NX stores it as an orphan (0.3.1, measured 2026-11-04); reports added/changed/removed from a full read-back, and flags renumbered ids and "answered but nothing changed". Every preview warns that applying discards the analysis results; `/DESIGN` previews add the shared-record / DCO-first / Civil-refusal notes |
 | `delete_records` | per-id DELETE only; nodes, and MATL/SECT/THIK records, used by elements refused (0.3.1: NX leaves the elements pointing at nothing); a load case's delete warns that NX takes its loads; NODE/ELEM and every table `midas_nx.plan.DEPENDENCIES` says names the deleted one are counted before and after to catch cascades; a record still there afterwards is reported as reset by NX or not deleted |
+| `apply_operations` | 0.3.2. Several write/delete operations under one preview and token, at most 20 operations and 200 records (MCP policy); no UNIT inside a batch. Order from `midas_nx.plan.order()`. The preview plays the steps on an in-memory copy of the tables they touch, so a record an earlier step creates counts as existing, and applies the `write_records`/`delete_records` checks per step. The token is the steps plus every table the checks read (the digest stays in the MCP, as agreed with the SDK). Apply runs step by step with a read-back, and stops at an NX error or timeout, at a create that added nothing, at a delete that removed other than asked, or at a create stored under other ids when a later step names that table (the SDK has no key policy yet). It returns done/failed/not_run and never rolls back. The validation is a stopgap until `plan.validate` (SDK 2.11) |
 
 Live (2026-11-03, Gen, from Claude Desktop): previews; a node created and
 deleted again (NODE back to 12); `run_analysis` applied twice. Gen stopped
@@ -180,6 +181,32 @@ before the call, and returns `waiting_for_nx_dialog` with the title at once;
 measured: the dialog is a top-level window of `GenNX.exe` (a watcher logged
 it appear at 00:02:23 and close at 00:03:08), and Claude Desktop relayed it
 before the user answered.
+
+`apply_operations` (0.3.2), live on Gen NX and Civil NX (2026-11-05), each in
+an untitled document seeded with one MATL; the results were the same on both:
+
+- **Build.** 7 steps given in reverse ran as NODE, THIK, SECT, STLD, CNLD,
+  ELEM, BMLD and all landed under the ids sent, in 3 s.
+- **Refused in the preview:** a beam naming a SECT that neither existed nor
+  was created in the batch.
+- **Refused by the order:** a batch that created SECT 2, moved the beams to
+  it and deleted SECT 1. Deletes run first, so SECT 1 was still in use when
+  its delete came. Do that in two batches.
+- **Teardown.** Given in the wrong order, it ran as ELEM, MATL, SECT, THIK,
+  NODE, STLD, in about 8 s.
+  - `also_changed` showed two cascades not recorded before: deleting the
+    elements removed their beam load (BMLD 1 -> 0), and deleting the nodes
+    their nodal load (CNLD 1 -> 0).
+  - Both are now in `CASCADE_NOTES` and the preview warns about them. They
+    are also reported to the SDK.
+
+The first try on Gen sent `POST /db/STLD` as the first write into an empty,
+freshly restarted document. Gen hung for about 10 s, answered "Client
+Disconnected" and its process ended. The batch stopped and reported nothing
+applied, and the 7 steps after it were not run. Gen also died on 2026-11-04
+during the first writes into a document made with New. The cause is not
+known and is reported to the SDK; the guide asks users not to work in NX
+during a batch.
 
 Reference checks (0.3.1), live on Gen NX and Civil NX (2026-11-04). Both runs
 used an untitled, empty document. On each, the tools built 1 MATL, 2 SECT,

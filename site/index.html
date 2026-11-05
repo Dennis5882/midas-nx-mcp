@@ -304,6 +304,7 @@ env = { MIDAS_MAPI_KEY_GEN = "Gen NX 키", MIDAS_MAPI_KEY_CIVIL = "Civil NX 키"
           <tr><td><code>save_copy</code></td><td><span class="kind write">변경</span></td><td><code>C:\temp</code>에 자동 이름으로 사본 저장</td></tr>
           <tr><td><code>write_records</code></td><td><span class="kind write">변경</span></td><td>기록 생성·수정, 한 번에 50개까지. 없는 재질·단면을 쓰는 요소는 거부</td></tr>
           <tr><td><code>delete_records</code></td><td><span class="kind write">변경</span></td><td>id로 기록 삭제, 한 번에 50개까지. 요소가 쓰는 절점·재질·단면은 거부</td></tr>
+          <tr><td><code>apply_operations</code></td><td><span class="kind write">변경</span></td><td>여러 테이블을 한 번에 생성·수정·삭제. 의존 순서로 실행하고, 실패하면 그 단계에서 멈춤</td></tr>
           <tr><td><code>generate_load_combinations</code></td><td><span class="kind write">변경</span></td><td>(Gen) KDS 콘크리트·강재·SRC 하중조합 추가. 기존 조합은 그대로</td></tr>
         </table>
       </div>

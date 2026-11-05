@@ -132,6 +132,7 @@ and reads the table back afterwards:
 | `save_copy(product)` | Save As to a generated name in `MIDAS_OUTPUT_DIR`; NX then works on the copy and the original stays as last saved. Gives a new document a file |
 | `write_records(product, table, records, mode)` | creates or updates up to 50 `/db` or `/DESIGN` records; elements naming a material, section or thickness that does not exist are refused |
 | `delete_records(product, table, ids)` | deletes up to 50 records by id; nodes, materials, sections and thicknesses still used by elements are refused; deleting a load case warns that NX deletes its loads; a `/DESIGN` record NX resets instead of removing is reported as such |
+| `apply_operations(product, operations)` | several creates, updates and deletes across tables under one preview and one token, e.g. the materials, sections, nodes, elements, load cases and loads of a small model; run in midas-nx's dependency order and checked as a whole first (a record an earlier step creates counts as existing); applied step by step with a read-back, stopping at the first failure with what is done, what failed and what did not run (nothing is rolled back); at most 20 operations and 200 records |
 | `generate_load_combinations(product, kind)` | Gen only: NX adds its KDS concrete, steel or SRC combinations from the load cases; the existing ones stay |
 
 Any write discards the analysis results in NX (even one that stores the same

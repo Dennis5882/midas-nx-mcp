@@ -163,7 +163,8 @@ def test_result_tables_are_grouped_with_what_each_group_needs():
 
 def test_prompts_name_only_tools_that_exist_and_change_nothing():
     tools = {t.name for t in asyncio.run(server.mcp.list_tools())}
-    writes = {"run_analysis", "save_copy", "write_records", "delete_records"}
+    writes = {"run_analysis", "save_copy", "write_records", "delete_records",
+              "apply_operations", "generate_load_combinations"}
     prompts = asyncio.run(server.mcp.list_prompts())
     assert {p.name for p in prompts} == {"check_reactions", "check_story_drift", "review_model"}
     for prompt in prompts:

@@ -17,6 +17,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
@@ -27,6 +28,7 @@ from mcp_types import ToolAnnotations
 from midas_nx import MidasAPIError, MidasClient, MidasConnectionError, doc, ope, plan, view
 from midas_nx.post.base import get_table, unwrap_table
 from midas_nx.view import capture
+from pydantic import BaseModel, Field
 
 from midas_nx_mcp import catalog, config, nx_window
 
@@ -70,6 +72,8 @@ SAVE_PREFIX = "mcp-save-"
 SAVE_EXTENSIONS = {"gen": ".mgbx", "civil": ".mcbz"}  # AGENTS.md rule 5
 SAVE_LANDING_SECONDS = 30.0  # a big model is still being written after NX answers
 MAX_WRITE_RECORDS = 50
+MAX_BATCH_STEPS = 20  # apply_operations: MCP policy, not an NX limit
+MAX_BATCH_RECORDS = 200
 DIALOG_POLL_SECONDS = 1.0
 CAPTURE_PREFIX = "mcp-capture-"
 MAX_CAPTURE_PIXELS = 2000
@@ -215,25 +219,26 @@ def _guarded(fn):
     def wrapper(*args, **kwargs):
         try:
             return fn(*args, **kwargs)
-        except MidasConnectionError as exc:
-            product = _product_of(signature, args, kwargs)
-            if isinstance(exc.__cause__, requests.Timeout):
-                raise ToolError(
-                    f"NX did not answer within {config.timeout():g} s. NX is probably "
-                    "showing a dialog that blocks the API. Ask the user to look at the "
-                    "NX window and close it; do not retry until they have."
-                    + _open_windows_note(product)
-                ) from exc
-            raise ToolError(str(exc) + _not_running_note(product)) from exc
-        except MidasAPIError as exc:
-            note = ""
-            if NOT_CONNECTED_TEXT in str(exc):
-                note = _not_running_note(_product_of(signature, args, kwargs))
-            raise ToolError(str(exc) + note) from exc
-        except ValueError as exc:
-            raise ToolError(str(exc)) from exc
+        except (MidasAPIError, ValueError) as exc:
+            raise ToolError(_failure_text(exc, _product_of(signature, args, kwargs))) from exc
 
     return wrapper
+
+
+def _failure_text(exc: Exception, product: Any) -> str:
+    """NX's own message, with what the user should do about a timeout or a closed NX."""
+    if isinstance(exc, MidasConnectionError):
+        if isinstance(exc.__cause__, requests.Timeout):
+            return (
+                f"NX did not answer within {config.timeout():g} s. NX is probably "
+                "showing a dialog that blocks the API. Ask the user to look at the "
+                "NX window and close it; do not retry until they have."
+                + _open_windows_note(product)
+            )
+        return str(exc) + _not_running_note(product)
+    if isinstance(exc, MidasAPIError) and NOT_CONNECTED_TEXT in str(exc):
+        return str(exc) + _not_running_note(product)
+    return str(exc)
 
 
 def _table_class(table: str):
@@ -788,11 +793,16 @@ def _record_ids(ids: Any) -> list[str]:
 SECTION_TABLES = {"BEAM": "SECT", "TRUSS": "SECT", "TENSTR": "SECT", "COMPTR": "SECT",
                   "PLATE": "THIK", "WALL": "THIK"}
 PROPERTY_TABLES = ("MATL", "SECT", "THIK")
-# What NX deletes along with a record, measured (midas-nx contracts, 2026-11-04).
-# Nodes in use are refused outright, so only load cases are listed.
+# What NX deletes along with a record, measured: STLD in midas-nx's contracts
+# (2026-11-04), ELEM and NODE live on Gen and Civil (2026-11-05). A stopgap
+# until the SDK publishes it (docs/sdk_proposal_batch_operations.md).
 CASCADE_NOTES = {
     "STLD": "NX deletes the loads in these load cases along with them (beam, nodal, "
             "pressure loads, ...); also_changed shows the counts after applying.",
+    "ELEM": "NX deletes the loads on these elements along with them (beam loads, ...); "
+            "also_changed shows the counts after applying.",
+    "NODE": "NX deletes the loads on these nodes along with them (nodal loads, ...); "
+            "also_changed shows the counts after applying.",
 }
 
 
@@ -815,50 +825,89 @@ def _property_refs(element: dict[str, Any]) -> dict[str, int]:
     return refs
 
 
-def _check_element_properties(
-    client: MidasClient, records: dict[str, Any], before: dict[str, Any]
-) -> None:
-    """Refuse elements naming a MATL, SECT or THIK that does not exist."""
-    named = {k: _property_refs({**before.get(k, {}), **v}) for k, v in records.items()}
-    tables = catalog.db_tables()
+class _State:
+    """Records of the tables a check needs, read once and then edited in memory.
+
+    A batch preview plays its steps on it, so a record an earlier step creates
+    counts as existing for a later one. ``read`` keeps what NX answered, for
+    the token.
+    """
+
+    def __init__(self, client: MidasClient):
+        self.client = client
+        self.read: dict[str, dict[str, Any]] = {}
+        self.now: dict[str, dict[str, Any]] = {}
+
+    def table(self, name: str) -> dict[str, Any]:
+        if name not in self.now:
+            records, _ = _records(catalog.db_tables()[name].get(client=self.client))
+            self.read[name] = records
+            self.now[name] = dict(records)
+        return self.now[name]
+
+
+def _missing_properties(state: _State, records: dict[str, Any]) -> dict[str, dict[str, int]]:
+    """Elements (merged into what is stored) naming a MATL, SECT or THIK that does not exist."""
+    elements = state.table("ELEM")
+    named = {k: _property_refs({**elements.get(k, {}), **v}) for k, v in records.items()}
     missing: dict[str, dict[str, int]] = {}
     for table in PROPERTY_TABLES:
         wanted = {k: refs[table] for k, refs in named.items() if table in refs}
-        if not wanted:
-            continue
-        existing = {_as_id(i) for i in _records(tables[table].get(client=client))[0]}
-        for element, ref in wanted.items():
-            if ref not in existing:
-                missing.setdefault(element, {})[table] = ref
-    if missing:
-        raise ToolError(
-            f"Elements name property records that do not exist (element: table id) {missing}. "
-            "NX would store them anyway, pointing at nothing. Create those MATL/SECT/THIK "
-            "records first, or use ids that exist."
-        )
+        if wanted:
+            existing = {_as_id(i) for i in state.table(table)}
+            for element, ref in wanted.items():
+                if ref not in existing:
+                    missing.setdefault(element, {})[table] = ref
+    return missing
 
 
-def _users_of(client: MidasClient, table: str, ids: list[str]) -> dict[str, dict[str, Any]]:
-    """Of the MATL/SECT/THIK ids, those some element names: {id: count and first few}."""
+def _missing_properties_error(missing: dict[str, dict[str, int]]) -> ToolError:
+    return ToolError(
+        f"Elements name property records that do not exist (element: table id) {missing}. "
+        "NX would store them anyway, pointing at nothing. Create those MATL/SECT/THIK "
+        "records first, or use ids that exist."
+    )
+
+
+def _in_use(state: _State, table: str, ids: list[str]) -> ToolError | None:
+    """Why deleting these NODE/MATL/SECT/THIK ids is refused, or None."""
+    if table != "NODE" and table not in PROPERTY_TABLES:
+        return None
     wanted = {int(k) for k in ids}
-    elements, _ = _records(catalog.db_tables()["ELEM"].get(client=client))
+    elements = state.table("ELEM")
+    if table == "NODE":
+        nodes = {e: sorted(wanted & set(rec.get("NODE", []))) for e, rec in elements.items()}
+        nodes = {e: n for e, n in sorted(nodes.items(), key=lambda kv: _by_id(kv[0])) if n}
+        if not nodes:
+            return None
+        return ToolError(
+            f"Nodes in use by elements (element: nodes) {nodes}; NX would delete those "
+            "elements too. Delete the elements first if that is intended."
+        )
     users: dict[int, list[str]] = {}
     for element, rec in elements.items():
         ref = _property_refs(rec).get(table)
         if ref in wanted:
             users.setdefault(ref, []).append(element)
-    return {str(i): {"elements": len(e), "first": sorted(e, key=_by_id)[:5]}
-            for i, e in sorted(users.items())}
+    if not users:
+        return None
+    summary = {str(i): {"elements": len(e), "first": sorted(e, key=_by_id)[:5]}
+               for i, e in sorted(users.items())}
+    return ToolError(
+        f"{table} ids in use by elements {summary}; NX would delete them and leave those "
+        "elements pointing at nothing. Give the elements another one first "
+        "(write_records on ELEM), or delete the elements."
+    )
 
 
-def _watched_tables(name: str) -> list[str]:
+def _watched_tables(product: Product, name: str) -> list[str]:
     """NODE, ELEM and every table whose records name `name` (midas_nx.plan)."""
     endpoint = f"/db/{name}"
     dependents = [t.removeprefix("/db/") for t, deps in plan.DEPENDENCIES.items()
                   if endpoint in deps]
     tables = catalog.db_tables()
     return [t for t in dict.fromkeys(["NODE", "ELEM", *sorted(dependents)])
-            if t != name and t in tables]
+            if t != name and t in tables and product in tables[t].PRODUCTS]
 
 
 def _counts(client: MidasClient, names: list[str]) -> dict[str, int]:
@@ -871,6 +920,13 @@ def _counts(client: MidasClient, names: list[str]) -> dict[str, int]:
         except MidasAPIError as exc:
             log.debug("not counting %s: %s", name, exc)
     return counts
+
+
+def _side_effects(client: MidasClient, counts: dict[str, int]) -> dict[str, dict[str, int]]:
+    """Tables whose record count changed since ``counts`` was taken."""
+    now = _counts(client, list(counts))
+    return {t: {"before": b, "after": now[t]} for t, b in counts.items()
+            if t in now and now[t] != b}
 
 
 @mcp.tool(annotations=CHANGES_MODEL)
@@ -1102,7 +1158,10 @@ def write_records(
             )
             raise ToolError(f"{name} has no ids {missing}; {hint}.")
     if name == "ELEM":
-        _check_element_properties(client, payload, before)
+        state = _State(client)
+        state.read["ELEM"], state.now["ELEM"] = before, dict(before)
+        if missing := _missing_properties(state, payload):
+            raise _missing_properties_error(missing)
     current = {i: before[i] for i in ids if i in before}
     token = _token("write", product, name, mode, payload, current, len(before))
     if confirm_token is None:
@@ -1141,29 +1200,14 @@ def delete_records(
     name = catalog.table_name(cls.ENDPOINT)
     keys = _record_ids(ids)
     client = _client(product)
-    tables = catalog.db_tables()
     before, _ = _records(cls.get(client=client))
     present = [k for k in keys if k in before]
     if not present:
         raise ToolError(f"None of ids {keys} exist in {name}; nothing to delete.")
-    if name == "NODE":
-        elements, _ = _records(tables["ELEM"].get(client=client))
-        wanted = {int(k) for k in present}
-        users = {e: sorted(wanted & set(rec.get("NODE", []))) for e, rec in elements.items()}
-        users = {e: n for e, n in users.items() if n}
-        if users:
-            raise ToolError(
-                f"Nodes in use by elements (element: nodes) {users}; NX would delete those "
-                "elements too. Delete the elements first if that is intended."
-            )
-    if name in PROPERTY_TABLES and (users := _users_of(client, name, present)):
-        raise ToolError(
-            f"{name} ids in use by elements {users}; NX would delete them and leave those "
-            "elements pointing at nothing. Give the elements another one first "
-            "(write_records on ELEM), or delete the elements."
-        )
+    if refusal := _in_use(_State(client), name, present):
+        raise refusal
     # Deleting one record can take others with it; count the tables around it.
-    counts = _counts(client, _watched_tables(name))
+    counts = _counts(client, _watched_tables(product, name))
     token = _token("delete", product, name, present, {k: before[k] for k in present}, counts)
     if confirm_token is None:
         preview = _preview(cls, table=name, will_delete={k: before[k] for k in present},
@@ -1188,12 +1232,212 @@ def delete_records(
         if extra:
             notes.append(f"ids {extra} are gone too, although they were not asked for")
         result["warning"] = f"Asked to delete {present}: " + "; ".join(notes) + "."
-    now = _counts(client, list(counts))
-    side = {t: {"before": b, "after": now[t]} for t, b in counts.items()
-            if t in now and now[t] != b}
-    if side:
+    if side := _side_effects(client, counts):
         result["also_changed"] = side
     return result
+
+
+class Operation(BaseModel):
+    """One step of apply_operations."""
+
+    table: str = Field(description='A /db or /DESIGN table, e.g. "NODE" or "ELEM".')
+    action: Literal["create", "update", "delete"]
+    records: dict[str, dict[str, Any]] | None = Field(
+        None, description='create/update: {id: fields}, as for write_records.')
+    ids: list[int] | None = Field(None, description="delete: the record ids.")
+
+
+@dataclass
+class _Step:
+    index: int  # the caller's position, from 1
+    cls: Any
+    name: str
+    action: str
+    method: str
+    keys: list[str]
+    payload: dict[str, Any]
+
+    def describe(self) -> dict[str, Any]:
+        return {"step": self.index, "table": self.name, "action": self.action, "ids": self.keys}
+
+
+def _steps(operations: list[Operation]) -> list[_Step]:
+    """Check each operation on its own, then put them in midas_nx.plan order."""
+    if not operations:
+        raise ToolError("No operations given.")
+    if len(operations) > MAX_BATCH_STEPS:
+        raise ToolError(f"At most {MAX_BATCH_STEPS} operations per call, got {len(operations)}.")
+    steps = []
+    for index, op in enumerate(operations, 1):
+        method = {"create": "POST", "update": "PUT", "delete": "DELETE"}[op.action]
+        cls = _writable(op.table, method)
+        name = catalog.table_name(cls.ENDPOINT)
+        if name == "UNIT":
+            raise ToolError(
+                "A UNIT change is not taken inside a batch: it changes how every later "
+                "value is read. Change UNIT on its own with write_records first."
+            )
+        if op.action == "delete":
+            if op.records:
+                raise ToolError(f"Operation {index}: a delete takes ids, not records.")
+            keys, payload = _record_ids(op.ids or []), {}
+        else:
+            if op.ids:
+                raise ToolError(f"Operation {index}: {op.action} takes records, not ids.")
+            keys = _record_ids(op.records or {})
+            payload = {k.strip(): v for k, v in (op.records or {}).items()}
+        steps.append(_Step(index, cls, name, op.action, method, keys, payload))
+    total = sum(len(s.keys) for s in steps)
+    if total > MAX_BATCH_RECORDS:
+        raise ToolError(f"At most {MAX_BATCH_RECORDS} records per call in all, got {total}.")
+    by_label = {str(s.index): s for s in steps}
+    ordered = plan.order([
+        plan.Operation(endpoint=s.cls.ENDPOINT, method=s.method, records=s.payload or None,
+                       ids=[int(k) for k in s.keys] if s.action == "delete" else None,
+                       label=str(s.index))
+        for s in steps
+    ])
+    return [by_label[op.label] for op in ordered]
+
+
+def _play(state: _State, step: _Step) -> None:
+    """Check one step against the model as the earlier steps leave it, then apply it there."""
+    records = state.table(step.name)
+    where = f"Step {step.index} ({step.action} {step.name})"
+    if step.action == "create":
+        if clash := [k for k in step.keys if k in records]:
+            raise ToolError(f"{where}: ids {clash} already exist; use update for those.")
+    elif (missing := [k for k in step.keys if k not in records]) and not (
+        step.action == "update" and _puts_create(step.cls, step.keys)
+    ):
+        raise ToolError(f"{where}: ids {missing} do not exist at that point of the batch.")
+    if step.action == "delete":
+        if refusal := _in_use(state, step.name, step.keys):
+            raise ToolError(f"{where}: {refusal}")
+        for k in step.keys:
+            records.pop(k)
+        return
+    if step.name == "ELEM" and (missing := _missing_properties(state, step.payload)):
+        raise ToolError(f"{where}: {_missing_properties_error(missing)}")
+    for k, fields in step.payload.items():
+        records[k] = {**records.get(k, {}), **fields} if step.action == "update" else fields
+
+
+def _names_table(later: _Step, table: _Step) -> bool:
+    return table.cls.ENDPOINT in plan.DEPENDENCIES.get(later.cls.ENDPOINT, frozenset())
+
+
+@mcp.tool(annotations=CHANGES_MODEL)
+@_guarded
+def apply_operations(
+    product: Product, operations: list[Operation], confirm_token: str | None = None
+) -> dict:
+    """Create, update and delete records in several tables at once, e.g. the
+    materials, sections, nodes, elements, load cases and loads of a small model.
+    Two steps: preview, then apply.
+
+    Each operation is what write_records or delete_records would take: table,
+    action ("create", "update" or "delete"), and records ({id: fields}) or ids.
+    The steps are run in midas-nx's dependency order (deletes first, then
+    what is named before what names it), whatever order they are given in;
+    the preview shows that order. The preview checks the whole batch first,
+    with the records earlier steps create counted as existing: the same rules
+    as write_records and delete_records. A UNIT change is not taken here.
+    At most 20 operations and 200 records in all.
+
+    Applying runs the steps one by one and reads each table back. It stops at
+    the first step that fails, changes nothing, or stores new records under
+    other ids while a later step names that table; what was already applied
+    stays (nothing is rolled back) and the result lists the steps done, the
+    failed one, and the ones not run. Any change discards the analysis results.
+    """
+    steps = _steps(operations)
+    client = _client(product)
+    state = _State(client)
+    for step in steps:
+        _play(state, step)
+    warnings = [RESULTS_WARNING]
+    warnings += [CASCADE_NOTES[s.name] for s in steps
+                 if s.action == "delete" and s.name in CASCADE_NOTES]
+    # The digest: every table the checks read, as NX answered it.
+    token = _token("batch", product, [(s.name, s.action, s.keys, s.payload) for s in steps],
+                   state.read)
+    if confirm_token is None:
+        preview: dict[str, Any] = {
+            "preview": True,
+            "order": [s.describe() for s in steps],
+            "reordered": [s.index for s in steps] != sorted(s.index for s in steps),
+            "will_send": _small({f"{s.index}:{s.action}:{s.name}": s.payload or s.keys
+                                 for s in steps}, limit=6000),
+            "warning": " ".join(dict.fromkeys(warnings)),
+            "confirm_token": token,
+        }
+        if any(s.cls.ENDPOINT.startswith("/DESIGN/") for s in steps):
+            preview["design_note"] = DESIGN_NOTE
+        return preview
+    _check_token(confirm_token, token)
+    done: list[dict[str, Any]] = []
+    for position, step in enumerate(steps):
+        report = step.describe()
+        not_run = [s.describe() for s in steps[position + 1:]]
+        before, _ = _records(step.cls.get(client=client))
+        counts = (_counts(client, _watched_tables(product, step.name))
+                  if step.action == "delete" else {})
+        try:
+            if step.action == "delete":
+                response = step.cls.delete([int(k) for k in step.keys], client=client)
+            else:
+                items = {int(k): v for k, v in step.payload.items()}
+                call = step.cls.create if step.action == "create" else step.cls.update
+                response = call(items, client=client)
+        except MidasAPIError as exc:
+            report["error"] = _failure_text(exc, product)
+            try:
+                after, _ = _records(step.cls.get(client=client))
+                report["read_back"] = {k: (list(v) if isinstance(v, dict) else v)
+                                       for k, v in _diff(before, after).items()}
+            except MidasAPIError:
+                report["read_back"] = "could not read the table back"
+            return _stopped(done, report, not_run, "NX refused or did not answer this step.")
+        after, _ = _records(step.cls.get(client=client))
+        diff = _diff(before, after)
+        report.update(added=list(diff["added"]), changed=list(diff["changed"]),
+                      removed=diff["removed"], server_response=_small(response, limit=500))
+        if counts and (side := _side_effects(client, counts)):
+            report["also_changed"] = side
+        if step.action == "delete":
+            if set(diff["removed"]) != set(step.keys):
+                return _stopped(done, report, not_run,
+                                f"Asked to delete {step.keys}; the table shows "
+                                f"{diff['removed']} removed.")
+        elif step.action == "create" and not diff["added"]:
+            return _stopped(done, report, not_run,
+                            "NX answered, but reading the table back shows nothing added.")
+        elif step.action == "update" and not (diff["changed"] or diff["added"]):
+            report["warning"] = ("Reading the table back shows no change (the values may "
+                                 "already have been these).")
+        elif step.action == "create" and set(diff["added"]) != set(step.keys):
+            dependents = [s.index for s in steps[position + 1:] if _names_table(s, step)]
+            if dependents:
+                return _stopped(done, report, not_run,
+                                f"NX stored the new {step.name} records under ids "
+                                f"{list(diff['added'])}, not {step.keys}, and steps "
+                                f"{dependents} name {step.name}. Fix their ids and run "
+                                "the rest again.")
+            report["warning"] = "NX stored the new records under ids other than the ones sent."
+        done.append(report)
+    return {"applied": True, "status": "done", "steps": done}
+
+
+def _stopped(done: list, failed: dict, not_run: list, why: str) -> dict:
+    return {
+        "applied": bool(done),
+        "status": "stopped",
+        "why": why + " The steps in 'done' stay applied; nothing was rolled back.",
+        "done": done,
+        "failed": failed,
+        "not_run": not_run,
+    }
 
 
 @mcp.tool(annotations=CHANGES_MODEL)

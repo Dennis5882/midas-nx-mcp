@@ -89,6 +89,7 @@ Gemini CLI (`%USERPROFILE%\.gemini\settings.json`의 `mcpServers`에 Claude Desk
 - save_copy(product): MIDAS_OUTPUT_DIR에 자동 이름으로 다른 이름 저장. 이후 NX는 사본에서 작업한다.
 - write_records(product, table, records, mode): `/db` 또는 `/DESIGN` 기록 생성(create)이나 수정(update). 한 번에 50개까지. 없는 재질·단면·두께를 쓰는 요소는 거부된다(NX는 검사 없이 저장한다).
 - delete_records(product, table, ids): id로 기록 삭제. 한 번에 50개까지. 요소가 쓰는 절점·재질·단면·두께는 삭제가 거부된다. 하중 케이스를 지우면 NX가 그 하중도 지운다(미리보기가 경고한다).
+- apply_operations(product, operations): 여러 테이블의 생성·수정·삭제를 미리보기 한 번, 토큰 하나로 처리한다. operations는 {table, action: create|update|delete, records 또는 ids}의 목록. midas-nx의 의존 순서로 다시 정렬해 실행하고(미리보기에 순서가 나온다), 앞 단계가 만드는 기록은 있는 것으로 보고 묶음 전체를 먼저 검사한다. 단계마다 다시 읽어 확인하며, 실패하면 거기서 멈추고 done·failed·not_run을 돌려준다(되돌리지 않는다). UNIT 변경은 받지 않는다. 20단계, 200기록까지.
 - generate_load_combinations(product, kind): Gen만. kind "concrete"·"steel"·"src". NX가 하중 케이스와 유형으로 KDS 하중조합을 만들어 기존 조합 뒤에 추가한다(수백 개일 수 있음). 이미 생성한 모델에 다시 하면 한 벌 더 생긴다.
 
 프롬프트(읽기 도구만 사용): check_reactions(product, load_case), check_story_drift(allowable_ratio, load_cases), review_model(product).
