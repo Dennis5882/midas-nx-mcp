@@ -213,7 +213,7 @@ def test_delete_previews_then_deletes_only_the_listed_ids(model):
 
 def test_nodes_used_by_elements_are_not_deleted(model):
     session, _, _ = model
-    with pytest.raises(ToolError, match="in use by elements"):
+    with pytest.raises(ToolError, match="in use by others"):
         server.delete_records("gen", "NODE", [1])
     assert _writes(session) == []
 
@@ -246,15 +246,16 @@ def properties(model):
 def test_an_element_naming_a_missing_material_or_section_is_refused(properties):
     session, _ = properties
     beam = {"TYPE": "BEAM", "MATL": 99, "SECT": 98, "NODE": [2, 3, 0, 0, 0, 0, 0, 0]}
-    with pytest.raises(ToolError, match="do not exist") as info:
+    with pytest.raises(ToolError, match="will not exist") as info:
         server.write_records("gen", "ELEM", {"3": beam}, "create")
-    assert "{'3': {'MATL': 99, 'SECT': 98}}" in str(info.value)
+    assert "record 3 names 99 in MATL" in str(info.value)
+    assert "record 3 names 98 in SECT, which /db/SECT" in str(info.value)
     # A plate's SECT is a thickness: THIK 8 does not exist, although SECT 8 does.
     plate = {"TYPE": "PLATE", "MATL": 1, "SECT": 8, "NODE": [1, 2, 3, 0, 0, 0, 0, 0]}
-    with pytest.raises(ToolError, match="'THIK': 8"):
+    with pytest.raises(ToolError, match="names 8 in SECT, which /db/THIK will not hold"):
         server.write_records("gen", "ELEM", {"3": plate}, "create")
     # An update is checked against the record it merges into.
-    with pytest.raises(ToolError, match="'SECT': 99"):
+    with pytest.raises(ToolError, match="record 1 names 99 in SECT"):
         server.write_records("gen", "ELEM", {"1": {"SECT": 99}}, "update")
     assert _writes(session) == []
     ok = {"TYPE": "BEAM", "MATL": 2, "SECT": 8, "NODE": [2, 3, 0, 0, 0, 0, 0, 0]}
@@ -265,9 +266,9 @@ def test_an_element_naming_a_missing_material_or_section_is_refused(properties):
 def test_a_material_section_or_thickness_in_use_is_not_deleted(properties, table, used_by):
     session, _ = properties
     target = 1 if table == "MATL" else 7
-    with pytest.raises(ToolError, match="in use by elements") as info:
+    with pytest.raises(ToolError, match="in use by others") as info:
         server.delete_records("gen", table, [target])
-    assert f"'first': ['{used_by}']" in str(info.value)
+    assert f"/db/ELEM record {used_by} (already in the model)" in str(info.value)
     assert _writes(session) == []
 
 
@@ -289,7 +290,7 @@ def test_deleting_a_load_case_warns_and_counts_the_loads_it_takes(model):
     session.routes["/db/STLD"] = nx_takes_the_loads
     session.routes["/db/BMLD"] = loads
     preview = server.delete_records("gen", "STLD", [1])
-    assert preview["warning"].startswith("NX deletes the loads")
+    assert preview["warning"].startswith("NX deletes BMLD ['1'] along with it")
     result = server.delete_records("gen", "STLD", [1], confirm_token=preview["confirm_token"])
     assert result["also_changed"] == {"BMLD": {"before": 1, "after": 0}}
 
@@ -614,3 +615,52 @@ def test_many_new_combinations_are_named_not_dumped(combinations):
     assert result["added_count"] == 10 and len(result["added"]) == 3  # MIDAS_MAX_ROWS
     assert "vCOMB" not in result["added"][0]
     assert "7 more added" in result["note"]
+
+
+# --- references checked by midas_nx.plan.validate -----------------------------
+
+
+def test_deleting_a_node_or_element_names_the_records_nx_takes_along(model):
+    session, _, _ = model
+    session.routes["/db/CNLD"] = FakeTable("CNLD", {3: {"ITEMS": []}})
+    session.routes["/db/CONS"] = FakeTable("CONS", {3: {"ITEMS": []}})
+    session.routes["/db/BMLD"] = FakeTable("BMLD", {1: {"ITEMS": []}})
+    session.routes["/db/FRLS"] = FakeTable("FRLS", {1: {"ITEMS": []}})
+    node = server.delete_records("gen", "NODE", [3])["warning"]
+    assert "NX deletes CNLD ['3'] along with it" in node
+    assert "NX deletes CONS ['3'] along with it" in node
+    elem = server.delete_records("gen", "ELEM", [1])["warning"]
+    assert "NX deletes BMLD ['1'] along with it" in elem
+    assert "NX deletes FRLS ['1'] along with it" in elem
+    assert _writes(session) == []
+
+
+def test_a_load_naming_a_load_case_that_does_not_exist_is_refused(model):
+    session, _, _ = model
+    session.routes["/db/STLD"] = FakeTable("STLD", {1: {"NAME": "DL"}})
+    session.routes["/db/BMLD"] = FakeTable("BMLD", {})
+    load = {"ITEMS": [{"ID": 1, "LCNAME": "LL", "TYPE": "UNILOAD"}]}
+    with pytest.raises(ToolError, match=r"names 'LL' in ITEMS\[\].LCNAME"):
+        server.write_records("gen", "BMLD", {"1": load}, "create")
+    load["ITEMS"][0]["LCNAME"] = "DL"
+    assert server.write_records("gen", "BMLD", {"1": load}, "create")["preview"]
+    assert _writes(session) == []
+
+
+def test_a_create_in_a_table_where_nx_picks_the_ids_says_so(model):
+    session, _, _ = model
+    session.routes["/db/STLD"] = FakeTable("STLD", {1: {"NAME": "DL"}})
+    preview = server.write_records("gen", "STLD", {"2": {"NAME": "LL"}}, "create")
+    assert "NX stores new STLD records under ids of its own choosing" in preview["warning"]
+    preview = server.write_records("gen", "NODE", {"4": {"X": 0, "Y": 0, "Z": 0}}, "create")
+    assert "of its own choosing" not in preview["warning"]
+
+
+def test_nx_going_away_during_the_checks_is_not_read_as_an_empty_table(model):
+    session, _, _ = model
+    session.routes["/db/CNLD"] = ({"message": "client does not exist"}, 404)
+    with pytest.raises(ToolError, match="client does not exist"):
+        server.delete_records("gen", "NODE", [3])
+    with pytest.raises(ToolError, match="client does not exist"):
+        server.write_records("gen", "CNLD", {"3": {"ITEMS": []}}, "create")
+    assert _writes(session) == []

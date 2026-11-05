@@ -87,8 +87,8 @@ Changing (two steps):
 
 - run_analysis(product): runs the analysis. NX first saves over the open file. A document never saved is refused.
 - save_copy(product): Save As to a generated name in MIDAS_OUTPUT_DIR. NX then works on the copy.
-- write_records(product, table, records, mode): creates (create) or updates (update) `/db` or `/DESIGN` records, up to 50 at once. Elements naming a material, section or thickness that does not exist are refused (NX would store them unchecked).
-- delete_records(product, table, ids): deletes records by id, up to 50 at once. Nodes, materials, sections and thicknesses used by elements are refused. Deleting a load case makes NX delete its loads too (the preview warns).
+- write_records(product, table, records, mode): creates (create) or updates (update) `/db` or `/DESIGN` records, up to 50 at once. A record naming one that does not exist (an element's material, section, thickness or nodes, a load's load case or group) is refused (NX would refuse it, store it unchecked, or drop the value).
+- delete_records(product, table, ids): deletes records by id, up to 50 at once. Nodes, materials, sections and thicknesses used by elements are refused. The preview names what NX deletes along with them: a load case's loads, a node's nodal loads, supports and masses, an element's beam loads, end releases and pressure loads.
 - apply_operations(product, operations): creates, updates and deletes across several tables under one preview and one token. operations is a list of {table, action: create|update|delete, records or ids}. The steps run in midas-nx's dependency order (the preview shows it), and the whole batch is checked first, with records created by earlier steps counted as existing. Each step is read back; on a failure it stops and returns done, failed and not_run (nothing is rolled back). No UNIT changes. At most 20 operations and 200 records.
 - generate_load_combinations(product, kind): Gen only. kind "concrete", "steel" or "src". NX builds the KDS combinations from the load cases and their types and appends them after the existing ones (can be hundreds). Run again on a model that has them, and it adds a second set.
 

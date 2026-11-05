@@ -68,7 +68,7 @@ def test_a_reference_to_a_record_neither_there_nor_created_is_refused(empty):
     ops = _model()
     ops[1] = Operation(table="ELEM", action="create",
                        records={"1": {"TYPE": "BEAM", "MATL": 1, "SECT": 9, "NODE": [1, 2]}})
-    with pytest.raises(ToolError, match=r"Step 2 \(create ELEM\).*'SECT': 9"):
+    with pytest.raises(ToolError, match=r"Step 2 \(create ELEM\): /db/ELEM record 1 names 9 in SECT"):
         server.apply_operations("gen", ops)
     assert [m for m, _, _ in session.sent if m != "GET"] == []
 
@@ -80,7 +80,7 @@ def test_deleting_elements_and_their_material_together_is_allowed(empty):
     tables["NODE"].records = {"1": {"X": 0}, "2": {"X": 1}}
     tables["ELEM"].records = {"1": {"TYPE": "BEAM", "MATL": 1, "SECT": 1, "NODE": [1, 2]}}
     alone = [Operation(table="MATL", action="delete", ids=[1])]
-    with pytest.raises(ToolError, match="in use by elements"):
+    with pytest.raises(ToolError, match="in use by others"):
         server.apply_operations("gen", alone)
     both = alone + [Operation(table="ELEM", action="delete", ids=[1])]
     preview = server.apply_operations("gen", both)
@@ -154,7 +154,7 @@ def test_renumbered_records_stop_the_steps_that_name_them(empty):
 def test_deleting_a_load_case_in_a_batch_warns_and_counts_its_loads(empty):
     session, tables = empty
     tables["STLD"].records = {"1": {"NAME": "DL"}}
-    tables["BMLD"].records = {"1": {"ITEMS": []}}
+    tables["BMLD"].records = {"1": {"ITEMS": [{"LCNAME": "DL"}]}}
     cases = tables["STLD"]
 
     def takes_loads(method, url, body):
@@ -165,6 +165,6 @@ def test_deleting_a_load_case_in_a_batch_warns_and_counts_its_loads(empty):
     session.routes["/db/STLD"] = takes_loads
     ops = [Operation(table="STLD", action="delete", ids=[1])]
     preview = server.apply_operations("gen", ops)
-    assert "NX deletes the loads" in preview["warning"]
+    assert "Step 1 (delete STLD): NX deletes BMLD ['1'] along with it" in preview["warning"]
     result = server.apply_operations("gen", ops, confirm_token=preview["confirm_token"])
     assert result["steps"][0]["also_changed"]["BMLD"] == {"before": 1, "after": 0}
