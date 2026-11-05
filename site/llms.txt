@@ -2,7 +2,7 @@
 
 > 로컬 MCP 서버. Claude Desktop, Claude Code, Codex, Gemini CLI 같은 AI 앱이 같은 Windows PC에서 실행 중인 MIDAS Gen NX / Civil NX의 열린 모델을 MIDAS NX Open API로 읽고, 사용자가 확인한 변경만 적용하게 한다. MIDAS IT 내부 구성원이 만든 개인 프로젝트(알파)이며, MIDAS IT 공식 제품은 아니다. MIT 라이선스.
 
-이 파일은 AI 에이전트가 사용자의 설치와 사용을 돕도록 쓴 요약이다. 사람용 페이지: https://dennis5882.github.io/midas-nx-mcp/ (English: https://dennis5882.github.io/midas-nx-mcp/en/llms.txt)
+이 파일은 AI 에이전트가 사용자의 설치와 사용을 돕도록 쓴 요약이다. 사람용 페이지: https://mcp.midasapi.space/ (English: https://mcp.midasapi.space/en/llms.txt)
 
 ## 핵심 사실
 
@@ -107,7 +107,7 @@ Gemini CLI (`%USERPROFILE%\.gemini\settings.json`의 `mcpServers`에 Claude Desk
 
 ## 링크
 
-- [사람용 소개 페이지](https://dennis5882.github.io/midas-nx-mcp/)
+- [사람용 소개 페이지](https://mcp.midasapi.space/)
 - [한국어 사용 설명서](https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md): 모든 기능의 자세한 설명
 - [README (English)](https://github.com/Dennis5882/midas-nx-mcp#readme)
 - [최신 릴리스와 .mcpb](https://github.com/Dennis5882/midas-nx-mcp/releases/latest)

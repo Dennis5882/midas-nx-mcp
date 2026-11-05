@@ -2,7 +2,7 @@
 
 > A local MCP server. It lets AI apps such as Claude Desktop, Claude Code, Codex and Gemini CLI read the model open in MIDAS Gen NX / Civil NX, running on the same Windows PC, through the MIDAS NX Open API, and apply only the changes the user confirms. A personal project (alpha) built by a MIDAS IT team member; not an official MIDAS IT product. MIT license.
 
-This file is a summary for AI agents helping a user install and use the server. Page for people: https://dennis5882.github.io/midas-nx-mcp/en/ (Korean: https://dennis5882.github.io/midas-nx-mcp/llms.txt)
+This file is a summary for AI agents helping a user install and use the server. Page for people: https://mcp.midasapi.space/en/ (Korean: https://mcp.midasapi.space/llms.txt)
 
 ## Key facts
 
@@ -107,7 +107,7 @@ Result tables: list_result_tables(category) sorts them into "model" (no analysis
 
 ## Links
 
-- [Page for people](https://dennis5882.github.io/midas-nx-mcp/en/)
+- [Page for people](https://mcp.midasapi.space/en/)
 - [README](https://github.com/Dennis5882/midas-nx-mcp#readme): the full English documentation
 - [Korean user guide](https://github.com/Dennis5882/midas-nx-mcp/blob/main/docs/user_guide_ko.md)
 - [Latest release and .mcpb](https://github.com/Dennis5882/midas-nx-mcp/releases/latest)
