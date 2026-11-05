@@ -313,6 +313,9 @@ h3 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; margin: 32px 0 1
 .fig .frame { fill: none; stroke: var(--text); stroke-width: 2.5; stroke-linejoin: round; }
 .fig .area { fill: var(--brand); fill-opacity: .22; stroke: var(--brand); stroke-width: 1.4; stroke-linejoin: round; }
 .fig .tick { fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.card .meta[data-tools] { display: flex; flex-wrap: wrap; gap: 6px; }
+.card .meta[data-tools] span { padding: 2px 7px; border-radius: var(--radius-sm); background: var(--code-bg); border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+.tools-note { margin: 20px 0 0; color: var(--muted); font-size: 14px; text-align: center; }
 .card .meta { margin-top: 14px; font: 500 12px var(--font-mono); color: var(--faint); letter-spacing: .02em; }
 
 .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 15px; }

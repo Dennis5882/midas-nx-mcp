@@ -70,7 +70,9 @@ README.
   `index.html` for people, `llms.txt` for AI agents, in Korean at the root
   and in English under `en/`, with `assets/` shared. They repeat the README
   and the Korean guide; when a tool, setting or install step changes, update
-  them too. Only `site/` is published.
+  them too. The page's tool names and counts are generated:
+  run `python scripts/site_tools.py` (place a new tool in its `GROUPS`);
+  `tests/test_site.py` fails when the page or a doc misses a tool. Only `site/` is published.
 - `PLAN.md` — phases, what each tool may do, and what is still open.
 - `docs/mcp_background_ko.md` — why this project exists and why it is a local
   stdio server (the author's notes, in Korean): when MCP is needed at all,
