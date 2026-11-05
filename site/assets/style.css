@@ -219,7 +219,9 @@ nav.links a:hover { color: var(--text); background: var(--surface-2); text-decor
 @keyframes hf-pick { 0%, 30% { fill: var(--brand-soft); stroke: var(--brand); } 40%, 100% { fill: var(--code-bg); stroke: var(--border); } }
 @keyframes hf-blink { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .hfig .flow, .hfig .back, .hfig .ripple, .hfig .pick, .hfig .typing circle { animation: none; }
+  /* Windows' "Animation effects: off" lands here too; keep the flow, slowed, and drop only what moves across the page. */
+  .hfig .flow, .hfig .back { animation-duration: 3s; }
+  .hfig .ripple { animation: none; opacity: 0; }
   .hfig .pkt, .hfig .pkt2 { display: none; }
 }
 .hero .cta { margin-top: 32px; }
