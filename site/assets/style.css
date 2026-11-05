@@ -137,7 +137,7 @@ nav.links a { padding: 7px 12px; font-size: 15px; font-weight: 500; color: var(-
 nav.links a, .brand-name { white-space: nowrap; }
 nav.links a:hover { color: var(--text); background: var(--surface-2); text-decoration: none; }
 @media (max-width: 900px) { nav.links .hide-sm { display: none; } }
-@media (max-width: 420px) { nav.links a { padding: 7px 8px; } .brand .logo { height: 20px; } }
+@media (max-width: 420px) { nav.links a { padding: 7px 8px; } .brand .logo { height: 20px; } .brand { font-size: 14px; gap: 8px; } .brand-name { padding-left: 8px; } nav.links a:nth-child(2) { display: none; } }
 
 .lang { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-md); overflow: hidden; font-size: 13px; flex-shrink: 0; background: var(--surface); }
 .lang a { padding: 5px 10px; color: var(--muted); font-weight: 500; }
@@ -206,7 +206,33 @@ nav.links a:hover { color: var(--text); background: var(--surface-2); text-decor
   .hfig .flow, .hfig .back, .hfig .ripple, .hfig .pick, .hfig .typing circle { animation: none; }
   .hfig .pkt, .hfig .pkt2 { display: none; }
 }
-.hero .cta { justify-content: center; margin-top: 28px; }
+.hero .cta { justify-content: center; margin-top: 0; }
+/* the download area keeps the dark navy look of the old hero */
+.hero-dark {
+  position: relative; overflow: hidden; width: 100%; margin-top: 24px; padding: 32px 24px 28px;
+  background: var(--navy-900); border: 1px solid var(--navy-700); border-radius: var(--radius-xl);
+  display: flex; flex-direction: column; align-items: center; color: #fff;
+}
+.hero-dark::before {
+  content: ""; position: absolute; inset: 0; opacity: .4; pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.hero-dark::after {
+  content: ""; position: absolute; top: -160px; right: -60px; width: 420px; height: 420px; pointer-events: none;
+  background: radial-gradient(circle, rgba(43,166,255,.22), transparent 62%);
+}
+.hero-dark > * { position: relative; z-index: 1; }
+.hero-dark .btn.ghost { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); color: #fff; }
+.hero-dark .btn.ghost:hover { background: rgba(255,255,255,.14); color: #fff; }
+.hero-dark .ver { color: var(--gray-400); }
+.hero-dark .ai-tip { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.14); color: var(--gray-300); }
+.hero-dark .ai-tip strong { color: #fff; }
+.hero-dark .ai-tip code { color: var(--cyan-400); background: rgba(0,0,0,.25); border-color: rgba(255,255,255,.12); }
+.hero-dark .copy-inline { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.2); color: #fff; }
+.hero-dark .badge { color: var(--gray-400); border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.04); }
+@media (max-width: 640px) { .hero-dark { padding: 24px 16px; } }
 .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 32px; }
 .btn {
   display: inline-flex; align-items: center; gap: 9px; height: 50px; padding: 0 22px;
